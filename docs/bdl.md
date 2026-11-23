@@ -63,7 +63,16 @@ Hüte:
 - `when click`
 - `when receive Nachricht`
 
-`define tanz` … `end` legt einen eigenen Block an. `call tanz` führt ihn aus. Parameter gibt es in dieser Fassung nicht.
+`define tanz` … `end` legt einen eigenen Block an. Parameter folgen dem Namen, `warp` lässt den Block ohne Bildschirmaktualisierung laufen:
+
+```bdl
+define warp tanz steps
+  move $steps
+end
+call tanz 20
+```
+
+Klone: `clone myself`, Hut `when clone`, `deleteclone`. `stop all` stoppt alle Skripte, `stop this` nur dieses, `stop other` die anderen Skripte derselben Figur.
 
 `edit` ändert das n-te ausführbare Skript der Figur, Zählung bei 1. Die Zeilen gelten nacheinander für den jeweils neuen Stand:
 
@@ -105,6 +114,8 @@ Blöcke `aiprompt` geben erst Geld aus, wenn in den Einstellungen „KI-Blöcke 
 `sprite` `pos` `dir` `shown` `scale` `pen` `var` `list` `script` `end` `else` `define` `clear-scripts` `cleartable` `table` `tables-reset` `edit` `replace` `insert` `delete` `delscript` `title` `tempo` `when` `flag` `key` `click` `receive` `move` `turn` `turnl` `goto` `setx` `changex` `sety` `changey` `point` `say` `think` `show` `hide` `setsize` `changesize` `broadcast` `wait` `repeat` `forever` `if` `repeatuntil` `call` `ask` `resettimer` `set` `change` `push` `remove` `clearlist` `pendown` `penup` `penclear` `pencolor` `pensize` `stamp` `tone` `note` `wave` `filter` `adsr` `recstart` `recstop` `recplay` `playsnd` `rect` `oval` `line` `gfxclear` `layer` `shader` `box3d` `cam` `rot3d` `clear3d` `row` `setcell` `share` `fetch` `job` `btping` `aiprompt` `comment` `log` `decomp` `ext` `x` `y` `size` `answer` `timer` `mousex` `mousey` `mousedown` `keydown` `add` `sub` `mul` `div` `mod` `round` `rand` `join` `strlen` `letter` `gt` `lt` `eq` `and` `or` `not` `item` `len` `has` `volume` `fft` `cell` `jobresult` `peers` `bt`
 
 Erweiterungen, die du lädst, rufst du mit `ext <id> <opcode> <argumente…>` auf.
+
+`warp` `clone` `deleteclone` `waituntil` `stop` `bounce` `pointtowards` `glide` `switchcostume` `nextcostume` `ghost` `sphere3d` `costume` `touching` `distance` `current` `contains`
 
 ## English
 

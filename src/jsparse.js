@@ -86,8 +86,14 @@ function parseJs(source) {
     if (token.value === 'function') {
       next();
       const name = next().value;
-      eat('('); eat(')');
-      return { type: 'fn', name, body: parseBlock() };
+      eat('(');
+      const params = [];
+      if (peek() && peek().value !== ')') {
+        params.push(next().value);
+        while (peek() && peek().value === ',') { next(); params.push(next().value); }
+      }
+      eat(')');
+      return { type: 'fn', name, params, body: parseBlock() };
     }
     if (token.value === 'if') {
       next(); eat('(');
@@ -106,6 +112,24 @@ function parseJs(source) {
     }
     if (token.value === 'for') {
       next(); eat('(');
+      if (peek() && (peek().value === 'let' || peek().value === 'const' || peek().value === 'var')) {
+        next();
+        const name = next().value;
+        if (peek() && peek().value === 'of') {
+          next();
+          const right = parseExpr();
+          eat(')');
+          return { type: 'forof', name, right, body: parseStmt() };
+        }
+        eat('=');
+        const init = { type: 'decl', name, value: parseExpr() };
+        eat(';');
+        const test = parseExpr();
+        eat(';');
+        const update = parseSimple();
+        eat(')');
+        return { type: 'for', init, test, update, body: parseStmt() };
+      }
       const init = parseSimple();
       eat(';');
       const test = parseExpr();
@@ -194,6 +218,8 @@ function parseJs(source) {
     return parsePrimary();
   }
   function parsePrimary() {
+    if (peek() && peek().value === '[') return parseArray();
+    if (peek() && peek().value === '{') return parseObject();
     const token = next();
     if (!token) throw new Error('expr');
     if (token.type === 'num') return { type: 'num', value: token.value };
@@ -225,14 +251,53 @@ function parseJs(source) {
         eat(')');
         return { type: 'method', object, method, args };
       }
-      return { type: 'id', name: token.value };
+      return parsePostfix({ type: 'id', name: token.value });
     }
     if (token.value === '(') {
       const expr = parseExpr();
       eat(')');
-      return expr;
+      return parsePostfix(expr);
     }
     throw new Error('expr');
+  }
+
+  function parseArray() {
+    eat('[');
+    const items = [];
+    if (peek() && peek().value !== ']') {
+      items.push(parseExpr());
+      while (peek() && peek().value === ',') { next(); items.push(parseExpr()); }
+    }
+    eat(']');
+    return parsePostfix({ type: 'array', items });
+  }
+
+  function parseObject() {
+    eat('{');
+    const fields = [];
+    if (peek() && peek().value !== '}') {
+      const key = next().value;
+      eat(':');
+      fields.push({ key, value: parseExpr() });
+      while (peek() && peek().value === ',') {
+        next();
+        const nextKey = next().value;
+        eat(':');
+        fields.push({ key: nextKey, value: parseExpr() });
+      }
+    }
+    eat('}');
+    return { type: 'object', fields };
+  }
+
+  function parsePostfix(expr) {
+    while (peek() && peek().value === '[') {
+      next();
+      const index = parseExpr();
+      eat(']');
+      expr = { type: 'index', object: expr, index };
+    }
+    return expr;
   }
 
   const body = [];
@@ -256,8 +321,10 @@ function exprToBdl(expr) {
     if (expr.op === '<=') return { kind: 'block', opcode: 'not', args: [{ kind: 'block', opcode: 'gt', args: node.args }] };
     return node;
   }
-  if (expr.type === 'method' && expr.object === 'console' && expr.method === 'log') {
-    return null;
+  if (expr.type === 'method' && expr.object === 'console' && expr.method === 'log') return null;
+  if (expr.type === 'array') return str(expr.items.map((item) => exprToBdl(item)?.value ?? '').join(','));
+  if (expr.type === 'index' && expr.object?.type === 'id') {
+    return { kind: 'block', opcode: 'item', args: [exprToBdl(expr.index), str(expr.object.name)] };
   }
   return str('…');
 }
@@ -268,11 +335,11 @@ function lowerStmt(stmt, out) {
   if (stmt.type === 'fn') {
     const body = [];
     stmt.body.forEach((item) => lowerStmt(item, body));
-    out.push({ kind: 'fn', name: stmt.name, body });
+    out.push({ kind: 'fn', name: stmt.name, params: stmt.params || [], body });
     return;
   }
   if (stmt.type === 'decl') {
-    out.push({ opcode: 'set', args: [str(stmt.name), exprToBdl(stmt.value)] });
+    lowerBinding(stmt.name, stmt.value, out);
     return;
   }
   if (stmt.type === 'assign' && stmt.op === '=') {
@@ -297,6 +364,19 @@ function lowerStmt(stmt, out) {
     out.push({ opcode: 'repeatuntil', args: [{ kind: 'block', opcode: 'not', args: [exprToBdl(stmt.test)] }], body, elseBody: null });
     return;
   }
+  if (stmt.type === 'forof') {
+    const listName = stmt.right?.type === 'id' ? stmt.right.name : 'liste';
+    if (stmt.right?.type === 'array') lowerBinding(listName === stmt.name ? 'liste' : listName, stmt.right, out);
+    const source = stmt.right?.type === 'id' ? stmt.right.name : 'liste';
+    out.push({ opcode: 'set', args: [str('index'), num(1)] });
+    const body = [
+      { opcode: 'set', args: [str(stmt.name), { kind: 'block', opcode: 'item', args: [{ kind: 'var', name: 'index' }, str(source)] }] },
+    ];
+    lowerStmt(stmt.body, body);
+    body.push({ opcode: 'change', args: [str('index'), num(1)] });
+    out.push({ opcode: 'repeat', args: [{ kind: 'block', opcode: 'len', args: [str(source)] }], body, elseBody: null });
+    return;
+  }
   if (stmt.type === 'for') {
     const count = forCount(stmt);
     if (stmt.init) lowerStmt(stmt.init, out);
@@ -316,8 +396,21 @@ function lowerStmt(stmt, out) {
     return;
   }
   if (stmt.type === 'expr' && stmt.expr?.type === 'call') {
-    out.push({ opcode: 'call', args: [str(stmt.expr.name)] });
+    out.push({ opcode: 'call', args: [str(stmt.expr.name), ...(stmt.expr.args || []).map(exprToBdl)] });
   }
+}
+
+function lowerBinding(name, value, out) {
+  if (value?.type === 'array') {
+    out.push({ opcode: 'clearlist', args: [str(name)] });
+    for (const item of value.items) out.push({ opcode: 'push', args: [exprToBdl(item), str(name)] });
+    return;
+  }
+  if (value?.type === 'object') {
+    for (const field of value.fields) out.push({ opcode: 'set', args: [str(`${name}.${field.key}`), exprToBdl(field.value)] });
+    return;
+  }
+  out.push({ opcode: 'set', args: [str(name), exprToBdl(value)] });
 }
 
 function forCount(stmt) {
@@ -343,8 +436,8 @@ export function decompileJs(source) {
     const calls = [];
     for (const item of flat) {
       if (item.kind === 'fn') {
-        sprite.scripts.push({ id: item.name, x: 40, y: 40, proc: item.name, blocks: item.body });
-        calls.push({ opcode: 'call', args: [str(item.name)], body: null, elseBody: null });
+        sprite.scripts.push({ id: item.name, x: 40, y: 40, proc: item.name, params: item.params || [], warp: false, blocks: item.body });
+        calls.push({ opcode: 'call', args: [str(item.name), ...(item.params || []).map(() => num(0))], body: null, elseBody: null });
       }
     }
     const loose = flat.filter((item) => item.kind !== 'fn');

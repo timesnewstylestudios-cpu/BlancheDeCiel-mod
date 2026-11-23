@@ -4,7 +4,7 @@ import { translate } from './i18n.js';
 import { categoryColor, CATEGORY_ORDER } from './palette.js';
 import { blocksInCategory, createBlock, labelFor, specByOpcode } from './catalog.js';
 import { applyBdl, errorText, extractBdl } from './bdl.js';
-import { createProject, uid } from './model.js';
+import { cloneData, createProject, uid } from './model.js';
 import bdlDoc from '../docs/bdl.md?raw';
 import { SCALE_BDL, TABLE_BDL, SAMPLE_EXTENSION } from './examples.js';
 import { exportSb3 } from './sb3.js';
@@ -12,7 +12,10 @@ import { analyzeBytes } from './importfile.js';
 import { buildAiMessages } from './prompt.js';
 import { chatComplete } from './client.js';
 import { createStageView } from './stageview.js';
-import { bluetoothAvailable, bluetoothPing } from './bluetooth.js';
+import { bluetoothAvailable, bluetoothPing, chromeIntentUrl, linkPaths } from './bluetooth.js';
+import { COSTUME_LIBRARY, SOUND_LIBRARY } from './library.js';
+import { addBackpackItem, loadBackpack, removeBackpackItem, saveBackpack } from './backpack.js';
+import { qrSvg } from './qr.js';
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -81,6 +84,10 @@ export function mount(root, ctx) {
       <footer id="status"></footer>
     </div>
     <div id="ghost"></div>
+    <div id="draw" hidden>
+      <canvas id="draw-canvas" width="160" height="160"></canvas>
+      <div class="row"><input id="draw-color" type="color" value="#4C97FF"><button type="button" id="draw-clear"></button><button type="button" id="draw-save"></button><button type="button" id="draw-close">OK</button></div>
+    </div>
     <form id="ask" hidden>
       <div id="ask-text" class="grow"></div>
       <input id="ask-input" class="grow">
@@ -113,11 +120,15 @@ export function mount(root, ctx) {
     select.innerHTML = `<option value="">${esc(t('examples'))}</option>` + Object.entries(names).map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join('');
     select.value = current;
     root.querySelector('#project-name').value = session.project.name || '';
+    const drawSave = root.querySelector('#draw-save');
+    if (drawSave) drawSave.textContent = t('drawSave');
+    const drawClear = root.querySelector('#draw-clear');
+    if (drawClear) drawClear.textContent = '×';
     const tabs = wideQuery.matches
-      ? [['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['settings', 'settings'], ['help', 'help']]
-      : [['blocks', 'blocks'], ['scripts', 'scripts'], ['stage', 'stage'], ['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['settings', 'settings'], ['help', 'help']];
+      ? [['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']]
+      : [['blocks', 'blocks'], ['scripts', 'scripts'], ['stage', 'stage'], ['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']];
     root.querySelector('#tabs').innerHTML = tabs.map(([id, key]) => `<button type="button" data-pane="${id}" class="${state.pane === id || (wideQuery.matches && state.tool === id) ? 'active' : ''}">${esc(t(key))}</button>`).join('');
-    root.querySelector('#tool-tabs').innerHTML = ['ai', 'import', 'grid', 'settings', 'help'].map((id) => `<button type="button" data-tool="${id}" class="${state.tool === id ? 'active' : ''}">${esc(t(id))}</button>`).join('');
+    root.querySelector('#tool-tabs').innerHTML = ['ai', 'import', 'grid', 'backpack', 'settings', 'help'].map((id) => `<button type="button" data-tool="${id}" class="${state.tool === id ? 'active' : ''}">${esc(t(id))}</button>`).join('');
     shell.dataset.pane = wideQuery.matches ? 'wide' : state.pane;
     shell.classList.toggle('wide', wideQuery.matches);
     for (const section of root.querySelectorAll('[data-tool-panel]')) {
@@ -146,8 +157,14 @@ export function mount(root, ctx) {
     }
     if (state.category === 'myblocks') {
       const procs = sprite().scripts.filter((script) => script.proc);
-      extra += procs.map((script) => `<button type="button" data-call="${esc(script.proc)}">${esc(t('proc'))} ${esc(script.proc)}</button>`).join('');
-      extra += `<button type="button" id="load-ext">${esc(t('loadExtension'))}</button>`;
+      extra += procs.map((script) => `<button type="button" data-call="${esc(script.proc)}">${esc(t('proc'))} ${esc(script.proc)}${script.params?.length ? ` (${esc(script.params.join(', '))})` : ''}</button>`).join('');
+      extra += `<div class="row"><input id="proc-name" placeholder="${esc(t('newBlock'))}"><input id="proc-params" placeholder="${esc(t('params'))}"></div><label class="row"><input id="proc-warp" type="checkbox"> ${esc(t('warp'))}</label><button type="button" id="make-proc">${esc(t('create'))}</button><button type="button" id="load-ext">${esc(t('loadExtension'))}</button>`;
+    }
+    if (state.category === 'looks') {
+      extra += `<p class="hint">${esc(t('library'))}</p><div class="row">${COSTUME_LIBRARY.map((item) => `<button type="button" data-costume="${esc(item.name)}">${esc(item.name)}</button>`).join('')}<button type="button" id="open-draw">${esc(t('draw'))}</button></div>`;
+    }
+    if (state.category === 'sound' || state.category === 'audio') {
+      extra += `<p class="hint">${esc(t('library'))}</p><div class="row">${SOUND_LIBRARY.map((item) => `<button type="button" data-sound="${esc(item.name)}">${esc(item.name)}</button>`).join('')}</div>`;
     }
     for (const ext of extensions.list()) {
       if (state.category !== 'myblocks' && state.category !== 'ai') continue;
@@ -222,7 +239,7 @@ export function mount(root, ctx) {
   }
 
   function renderSprites() {
-    root.querySelector('#sprites').innerHTML = session.project.sprites.map((item) => `
+    root.querySelector('#sprites').innerHTML = session.project.sprites.filter((item) => !item.isClone).map((item) => `
       <div class="sprite-chip ${item.id === sprite()?.id ? 'active' : ''}" data-sprite="${esc(item.id)}">
         <input data-rename="${esc(item.id)}" value="${esc(item.name)}" aria-label="${esc(t('rename'))}">
       </div>`).join('') + `<button type="button" id="add-sprite">${esc(t('addSprite'))}</button>${sprite()?.isStage ? '' : `<button type="button" id="del-sprite">${esc(t('deleteSprite'))}</button>`}<label class="sprite-chip">${esc(t('costume'))}<input id="costume" type="file" accept="image/*"></label><label class="sprite-chip">${esc(t('sound'))}<input id="sound" type="file" accept="audio/*,.wav,.mp3,.ogg,.webm,.m4a,.flac"></label>`;
@@ -255,7 +272,14 @@ export function mount(root, ctx) {
         <div class="row"><button type="button" id="make-offer">${esc(t('offer'))}</button><button type="button" id="take-offer">${esc(t('pasteOffer'))}</button><button type="button" id="take-answer">${esc(t('pasteAnswer'))}</button></div>
         <textarea id="sdp" placeholder="${esc(t('sdp'))}"></textarea>
         <p>${esc(t('bluetooth'))}: <span id="bt-state"></span></p>
-        <button type="button" id="bt-try">${esc(t('btTry'))}</button>
+        <p id="bt-paths"></p>
+        <div class="row"><button type="button" id="bt-try">${esc(t('btTry'))}</button><a id="chrome-open" href="#">${esc(t('chromeOpen'))}</a></div>
+        <label>${esc(t('room'))}<input id="room" type="text" value="himmel"></label>
+        <label>${esc(t('tracker'))}<input id="tracker" type="text" placeholder="wss://tracker.openwebtorrent.com"></label>
+        <p class="hint">${esc(t('trackerHint'))}</p>
+        <div class="row"><button type="button" id="join-room">${esc(t('joinRoom'))}</button></div>
+        <p class="hint">${esc(t('qrHint'))}</p>
+        <div id="qr"></div>
         <h3>${esc(t('tables'))}</h3>
         <pre class="out" id="table-view"></pre>
       </section>
@@ -263,9 +287,14 @@ export function mount(root, ctx) {
         <label>${esc(t('apiKey'))}<input id="api-key" type="password" autocomplete="off"></label>
         <label>${esc(t('model'))}<input id="api-model" type="text"></label>
         <label>${esc(t('baseUrl'))}<input id="api-base" type="text"></label>
+        <label>${esc(t('tracker'))}<input id="tracker-setting" type="text"></label>
         <label class="row"><input id="ai-blocks" type="checkbox"> ${esc(t('aiBlocks'))}</label>
         <p class="hint">${esc(t('aiBlocksHint'))}</p>
         <button type="button" id="forget-key">${esc(t('forgetKey'))}</button>
+      </section>
+      <section data-tool-panel="backpack">
+        <button type="button" id="pack-script">${esc(t('backpackIn'))}</button>
+        <div id="backpack-list"></div>
       </section>
       <section data-tool-panel="help">
         <p>${esc(t('helpIntro'))}</p>
@@ -274,6 +303,15 @@ export function mount(root, ctx) {
     root.querySelector('#api-key').value = settings.apiKey;
     root.querySelector('#api-model').value = settings.model;
     root.querySelector('#api-base').value = settings.baseUrl;
+    const tracker = root.querySelector('#tracker');
+    if (tracker) tracker.value = settings.trackerUrl || '';
+    const trackerSetting = root.querySelector('#tracker-setting');
+    if (trackerSetting) trackerSetting.value = settings.trackerUrl || '';
+    const paths = linkPaths();
+    const pathLine = root.querySelector('#bt-paths');
+    if (pathLine) pathLine.textContent = `${t('paths')}: ${Object.entries(paths).filter(([, on]) => on).map(([name]) => name).join(', ') || t('btNo')}`;
+    const chrome = root.querySelector('#chrome-open');
+    if (chrome) chrome.href = chromeIntentUrl();
     root.querySelector('#ai-blocks').checked = !!session.project.aiBlocksEnabled;
     root.querySelector('#node-id').textContent = gridApi.node.id.slice(0, 12);
     root.querySelector('#bt-state').textContent = bluetoothAvailable() ? t('btYes') : t('btNo');
@@ -301,6 +339,13 @@ export function mount(root, ctx) {
     renderSprites();
     const tables = root.querySelector('#table-view');
     if (tables) tables.textContent = JSON.stringify(session.project.tables, null, 2);
+    const pack = root.querySelector('#backpack-list');
+    if (pack) {
+      const items = loadBackpack();
+      pack.innerHTML = items.length
+        ? items.map((item) => `<div class="row"><button type="button" data-unpack="${esc(item.id)}">${esc(item.type)} ${esc(item.name || '')}</button><button type="button" data-drop-pack="${esc(item.id)}">×</button></div>`).join('')
+        : `<p>${esc(t('backpackEmpty'))}</p>`;
+    }
     const peers = root.querySelector('#peer-count');
     if (peers) {
       peers.textContent = String(gridApi.node.peerCount());
@@ -531,6 +576,65 @@ export function mount(root, ctx) {
         project.sprites = project.sprites.filter((item) => item.id !== state.spriteId || item.isStage);
       });
     }
+    if (event.target.id === 'make-proc') {
+      const name = root.querySelector('#proc-name')?.value.trim();
+      if (!name) return;
+      const params = (root.querySelector('#proc-params')?.value || '').split(/[\s,]+/).filter(Boolean);
+      const warp = !!root.querySelector('#proc-warp')?.checked;
+      session.update((project) => {
+        const item = project.sprites.find((spriteItem) => spriteItem.id === state.spriteId);
+        item.scripts = item.scripts.filter((script) => script.proc !== name);
+        item.scripts.push({ id: uid(), x: 40, y: 40, proc: name, params, warp, blocks: [] });
+      });
+      return;
+    }
+    const costume = event.target.closest('[data-costume]');
+    if (costume) {
+      const found = COSTUME_LIBRARY.find((item) => item.name === costume.dataset.costume);
+      if (!found) return;
+      session.update((project) => {
+        const item = project.sprites.find((spriteItem) => spriteItem.id === state.spriteId);
+        item.costumes.push({ name: found.name, dataUrl: found.dataUrl });
+        item.costumeIndex = item.costumes.length - 1;
+        item.costume = found.dataUrl;
+        item.costumeName = found.name;
+      });
+      return;
+    }
+    const sound = event.target.closest('[data-sound]');
+    if (sound) {
+      const found = SOUND_LIBRARY.find((item) => item.name === sound.dataset.sound);
+      if (!found) return;
+      session.update((project) => {
+        const item = project.sprites.find((spriteItem) => spriteItem.id === state.spriteId);
+        item.sounds.push({ name: found.name, dataUrl: found.dataUrl });
+      });
+      setStatus(t('soundOk'));
+      return;
+    }
+    if (event.target.id === 'open-draw') {
+      root.querySelector('#draw').hidden = false;
+      return;
+    }
+    const unpack = event.target.closest('[data-unpack]');
+    if (unpack) {
+      const item = loadBackpack().find((entry) => entry.id === unpack.dataset.unpack);
+      if (item?.type === 'script' && item.script) {
+        session.update((project) => {
+          const owner = project.sprites.find((spriteItem) => spriteItem.id === state.spriteId);
+          const copy = cloneData(item.script);
+          copy.id = uid();
+          owner.scripts.push(copy);
+        });
+      }
+      return;
+    }
+    const dropPack = event.target.closest('[data-drop-pack]');
+    if (dropPack) {
+      saveBackpack(removeBackpackItem(loadBackpack(), dropPack.dataset.dropPack));
+      refresh();
+      return;
+    }
     if (event.target.id === 'load-ext') {
       if (!window.confirm(t('extensionWarn'))) return;
       try { extensions.load(SAMPLE_EXTENSION); refresh(); }
@@ -716,7 +820,33 @@ export function mount(root, ctx) {
     };
     root.querySelector('#bt-try').onclick = async () => {
       const result = await bluetoothPing();
-      setStatus(result.ok ? result.name : `${t('btNo')}: ${result.reason}`);
+      setStatus(result.ok ? `${result.path || ''} ${result.name || ''}` : `${t('btNo')}: ${result.reason}`);
+    };
+    root.querySelector('#join-room').onclick = () => {
+      const room = root.querySelector('#room').value.trim();
+      const url = (root.querySelector('#tracker').value || settings.trackerUrl || '').trim();
+      settings.trackerUrl = url;
+      saveSettings(settings);
+      const qr = root.querySelector('#qr');
+      try { qr.innerHTML = room ? qrSvg(`bdc:${room}`) : ''; }
+      catch { qr.textContent = room; }
+      if (!url) { setStatus(t('trackerHint')); return; }
+      try {
+        gridApi.joinRoom(url, room, (event) => setStatus(event.type === 'error' ? t('error') : t('connected')));
+      } catch (error) {
+        setStatus(error.message || String(error));
+      }
+    };
+    root.querySelector('#pack-script').onclick = () => {
+      const current = sprite();
+      const script = state.selection && current.scripts.find((item) => item.id === state.selection.scriptId);
+      if (!script) return;
+      saveBackpack(addBackpackItem(loadBackpack(), { type: 'script', name: script.proc || current.name, script }));
+      refresh();
+    };
+    root.querySelector('#tracker-setting').onchange = (event) => {
+      settings.trackerUrl = event.target.value.trim();
+      saveSettings(settings);
     };
     const persistSettings = () => {
       settings.apiKey = root.querySelector('#api-key').value;
@@ -743,7 +873,11 @@ export function mount(root, ctx) {
   renderHelp();
   session.subscribe(refresh);
   wideQuery.addEventListener('change', refresh);
-  window.addEventListener('resize', refresh);
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(refresh, 150);
+  });
 
   const stageSpriteHit = { id: null };
   stageView.view.addEventListener('pointerdown', (event) => {
@@ -751,7 +885,7 @@ export function mount(root, ctx) {
     const at = stageView.localScratch(event);
     runtimeInput(at, true);
     if (hit) {
-      state.spriteId = hit.id;
+      state.spriteId = hit.cloneParent || hit.id;
       stageSpriteHit.id = hit.id;
       runtime.clickSprite(hit);
       renderSprites();
@@ -802,6 +936,35 @@ export function mount(root, ctx) {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+
+  const drawCanvas = root.querySelector('#draw-canvas');
+  const drawCtx = drawCanvas.getContext('2d');
+  let drawing = false;
+  const drawAt = (event) => {
+    const rect = drawCanvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * drawCanvas.width;
+    const y = ((event.clientY - rect.top) / rect.height) * drawCanvas.height;
+    drawCtx.fillStyle = root.querySelector('#draw-color').value;
+    drawCtx.beginPath();
+    drawCtx.arc(x, y, 5, 0, Math.PI * 2);
+    drawCtx.fill();
+  };
+  drawCanvas.addEventListener('pointerdown', (event) => { drawing = true; drawAt(event); });
+  drawCanvas.addEventListener('pointermove', (event) => { if (drawing) drawAt(event); });
+  window.addEventListener('pointerup', () => { drawing = false; });
+  root.querySelector('#draw-clear').onclick = () => drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  root.querySelector('#draw-close').onclick = () => { root.querySelector('#draw').hidden = true; };
+  root.querySelector('#draw-save').onclick = () => {
+    const dataUrl = drawCanvas.toDataURL('image/png');
+    session.update((project) => {
+      const item = project.sprites.find((spriteItem) => spriteItem.id === state.spriteId);
+      item.costumes.push({ name: 'Zeichnung', dataUrl });
+      item.costumeIndex = item.costumes.length - 1;
+      item.costume = dataUrl;
+      item.costumeName = 'Zeichnung';
+    });
+    root.querySelector('#draw').hidden = true;
+  };
 
   ctx.bridge.ask = (question) => new Promise((resolve) => {
     askResolve = resolve;

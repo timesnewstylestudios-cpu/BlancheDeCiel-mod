@@ -1,0 +1,8 @@
+{
+  "appId": "de.blanchedeciel.app",
+  "appName": "BlancheDeCiel",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

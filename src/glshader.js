@@ -27,6 +27,23 @@ void main() {
     float v = smoothstep(0.95, 0.25, distance(uv, vec2(0.5)));
     color.rgb *= v;
   }
+  if (uMode == 5) {
+    float g = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+    color.rgb = vec3(g);
+  }
+  if (uMode == 6) {
+    float r = dot(color.rgb, vec3(0.393, 0.769, 0.189));
+    float g = dot(color.rgb, vec3(0.349, 0.686, 0.168));
+    float b = dot(color.rgb, vec3(0.272, 0.534, 0.131));
+    color.rgb = vec3(r, g, b);
+  }
+  if (uMode == 7) {
+    vec2 px = vec2(1.0 / 480.0, 1.0 / 360.0);
+    float l = dot(texture2D(uTex, uv - px).rgb, vec3(0.3));
+    float r = dot(texture2D(uTex, uv + px).rgb, vec3(0.3));
+    float e = abs(r - l);
+    color.rgb = vec3(e);
+  }
   gl_FragColor = color;
 }`;
 
@@ -51,7 +68,7 @@ export function createGL(canvas) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const modes = { invert: 1, pixel: 2, vignette: 3, wave: 4 };
+  const modes = { invert: 1, pixel: 2, vignette: 3, wave: 4, gray: 5, sepia: 6, edge: 7 };
   return {
     draw(source, preset, time) {
       const mode = modes[preset];

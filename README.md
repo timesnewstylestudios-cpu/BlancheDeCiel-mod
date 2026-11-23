@@ -10,10 +10,11 @@ Lizenz: GNU GPL 3.0 oder jede spätere Version. Siehe `LICENSE`.
 
 - Blöcke antippen oder aus der Palette ziehen, Skripte starten, Figuren auf der Bühne schieben.
 - **KI:** In der Leiste „KI“ einen Satz schreiben. Mit eigenem Schlüssel von [xAI](https://console.x.ai) geht die Anfrage an `https://api.x.ai/v1/chat/completions` (OpenAI-kompatibel, Modell standardmäßig `grok-4.7`). Der Schlüssel liegt nur in `localStorage` dieses Browsers. Die Anfrage schickt eine kurze BDL-Zusammenfassung und die Opcode-Liste, nicht das ganze Projekt-JSON. Die Antwort ist BDL und wird zu Blöcken. Ohne Schlüssel kannst du BDL von Hand einfügen und auf „BDL anwenden“ drücken. Blöcke, die im Skript die KI rufen, sind aus, bis du sie in den Einstellungen einschaltest.
-- **Import:** `.sb3`, `.pmp`, ZIP, eingebettetes Projekt in HTML (PenguinMod- oder TurboWarp-Paket, wenn ein ZIP oder `project.json` darin steckt), `.bdc.json` und eine Teilmenge von JavaScript. JavaScript wird nicht ausgeführt. Es entsteht Pseudocode und, wo die Struktur erkennbar ist, Blöcke. Nur für eigenen Code oder Code, dessen Lizenz das erlaubt. Derselbe Hinweis steht im Import-Fenster.
-- **Netz:** Tabellen und Aufträge (`sum`, `min`, `max`, `count`) zwischen Gegenstellen. Tabs desselben Browsers verbinden sich über `BroadcastChannel`. Andere Geräte verbinden sich per WebRTC, indem eine Seite ein Angebot erzeugt und die andere die Antwort zurückschickt. Darüber liegt eine kleine Kademlia-artige Weiterleitung (k-Buckets, XOR-Abstand, STORE/FIND). Bluetooth ist ein optionaler Block und Knopf; im Android-WebView von AppGeyser gibt es kein Web Bluetooth, der Block meldet dann „nicht verfügbar“.
-- **Audio:** Tonhöhe, Wellenform, Filter, Hüllkurve, FFT, Aufnahme und Wiedergabe über die Web Audio API, soweit der WebView das Mikrofon erlaubt. Dateien, die `decodeAudioData` versteht (je nach Gerät wav, mp3, ogg, webm).
-- **Grafik:** Stift, Rechteck, Oval, Linie, Schichten, Shader-Voreinstellungen (WebGL, sonst dieselbe Wirkung auf der 2D-Leinwand), einfache 3D-Quader.
+- **Blöcke:** Klone (`clone`, `when clone`, `deleteclone`), eigene Blöcke mit Parametern und `warp` (ohne Bildschirmaktualisierung), Kostüme aus einer kleinen Bibliothek oder der Zeichenfläche, Töne als WAV, Rucksack in `localStorage`.
+- **Import:** `.sb3`, `.pmp`, ZIP, eingebettetes Projekt in HTML, `.bdc.json` und JavaScript. Neben den Grundblöcken kommen Klone, Warten-bis, Stopp, Gleiten, Rand, Kostümwechsel, Ghost, eigene Blöcke mit Parametern und `warp` an. JavaScript versteht zusätzlich Parameter, `else if`, Arrays, einfache Objekte, `for…of` und Indexzugriff. Es wird nicht ausgeführt. Nur für eigenen Code oder Code, dessen Lizenz das erlaubt.
+- **Netz:** Tabellen und Aufträge zwischen Gegenstellen, Kademlia-artig über die bestehenden Verbindungen. Tabs desselben Browsers finden sich von selbst. Andere Geräte: Angebot und Antwort wie bisher, oder ein Raumname als QR-Code. Optional eine Signal-URL (WebTorrent-Tracker, zum Beispiel `wss://tracker.openwebtorrent.com`). Leer lassen heißt: kein Server.
+- **Audio:** Tonhöhe, Wellenform, Filter, Hüllkurve, FFT, Aufnahme, Bibliothekston und Dateien, die `decodeAudioData` versteht.
+- **Grafik:** Stift, Formen, Schichten, Shader `none`, `invert`, `pixel`, `vignette`, `wave`, `gray`, `sepia`, `edge` (WebGL, sonst 2D), Quader, Kugeln und ein Bodenraster.
 - **Erweiterungen:** Eine Teilmenge des unsandboxed PenguinMod-Formats (`Scratch.extensions.register`, `getInfo`, Befehle und Reporter). Geladener Code läuft mit den Rechten der Seite. Die Beispiel-Erweiterung „Echo“ liegt unter „Meine Blöcke“.
 
 Die Bühnenmitte ist der Ursprung, x zeigt nach rechts, y nach oben. Richtung 0 ist oben, 90 ist rechts.
@@ -75,22 +76,37 @@ Die App ist eine Website. AppGeyser packt sie in ein Android-WebView. Ein eigene
 
 Grenzen des WebView, die du einplanen solltest:
 
-- Web Bluetooth fehlt. Der Bluetooth-Block und der Knopf sagen das und brechen nicht ab.
+- Web Bluetooth fehlt in AppGeyser. Der Knopf probiert der Reihe nach eine native Brücke, Capacitor-BLE, Web Bluetooth, Web Serial und Web USB. Was fehlt, wird genannt, die App läuft weiter. „In Chrome öffnen“ startet dieselbe URL in Chrome, wo Web Bluetooth existiert.
 - Ein Service Worker speichert die Seite nach dem ersten Besuch im Browser. Manche WebViews ignorieren ihn. Dann ist die App nur online da.
-- WebRTC kann am WebView scheitern. Dieselbe Logik läuft zwischen zwei Tabs auch ohne WebRTC.
+- WebRTC kann am WebView scheitern. Dieselbe Logik läuft zwischen zwei Tabs auch ohne WebRTC. Der optionale Tracker braucht Netz.
 - Der API-Schlüssel liegt im Speicher des WebView. Wer die App auf dem Gerät untersucht, kann ihn lesen. Trag keinen Schlüssel ein, den andere ausgeben dürfen.
+
+## Bluetooth: welcher Weg wo
+
+| Weg | AppGeyser-WebView | Chrome (Android/Desktop) | Eigene Android-Hülle |
+| --- | --- | --- | --- |
+| Web Bluetooth | nein | ja, nach Nutzerauswahl | nur wenn das WebView es lässt |
+| Web Serial / Web USB | nein | Desktop-Chrome, teils Android | nein |
+| `window.BlancheBridge` oder `window.Android` | nein, solange die Hülle nichts einspeist | nein | ja, wenn die Hülle die Brücke setzt |
+| Capacitor + BLE | nein | nein | ja, siehe `android-wrapper/` |
+| Intent „In Chrome öffnen“ | öffnet Chrome | bleibt in Chrome | öffnet Chrome |
+
+Die statische Website bleibt die App für AppGeyser. Bluetooth-fähig wird sie mit der optionalen Hülle:
+
+```bash
+cd android-wrapper
+npm install
+npm run prepare
+npx cap add android
+npx cap sync
+npx cap open android
+```
+
+Dafür brauchst du Android Studio und ein Gerät. `npm run prepare` kopiert `../dist` nach `www` und hängt die Brücke an, die `@capacitor-community/bluetooth-le` als `window.BlancheBridge` anbietet. Die Website erkennt die Brücke von selbst. Ohne diese Hülle bleibt der Bluetooth-Knopf bei „nicht verfügbar“ und der Rest des Editors arbeitet normal.
 
 ## Bekannte Grenzen
 
-Diese erste Fassung ist ein benutzbarer Editor, nicht die ganze PenguinMod-VM.
-
-- Kein Klonen, keine Prozedur-Parameter, kein Rucksack, keine Kostümbibliothek.
-- Von Scratch werden die üblichen Bewegungs-, Aussehens-, Ereignis-, Steuerungs-, Fühl-, Operator-, Variablen-, Listen- und Stift-Blöcke importiert und ausgeführt. Unbekannte Opcodes werden zu Kommentar-Blöcken.
-- JavaScript-Import erkennt Funktionen, `if`, einfache `for`-Zählschleifen, `while`, Zuweisungen und `console.log`. Anderes bleibt Zeilentext.
-- HTML-Import sucht ein eingebettetes ZIP (`UEsDB…`) oder ein JSON mit `targets`.
-- 3D zeichnet farbige Quader. Shader sind die Voreinstellungen `none`, `invert`, `pixel`, `vignette`, `wave`.
-- Verteilte Aufträge rechnen lokal sofort richtig. Verbundene Gegenstellen bekommen dieselben Zeilen und rechnen mit. Es gibt keinen öffentlichen Bootstrap-Server; ohne kopiertes Angebot finden sich nur Tabs desselben Browsers.
-- Aufnahme, Mikrofon und WebRTC hängen am Gerät.
+Weiterhin nicht eingebaut: der volle Scratch-Befehlssatz (Berühren einer Farbe, Klon-Ursprung als eigene Variable, Nachrichten mit Wartezeit nur als Senden), ein Malprogramm mit Ebenen, und ein garantiert erreichbarer öffentlicher Tracker. Unbekannte Opcodes werden Kommentare. HTML-Import sucht ein ZIP (`UEsDB…`) oder `targets`. Verteilte Aufträge rechnen lokal sofort; Gegenstellen bekommen dieselben Zeilen. Der Tracker ist absichtlich aus, bis eine URL eingetragen ist. Aufnahme, Mikrofon und WebRTC hängen am Gerät.
 
 ## English
 
@@ -100,6 +116,6 @@ The license is GPL-3.0-or-later.
 
 Run `npm ci`, `npm test`, `npm run dev`. `npm run build` writes `dist/`. GitHub Actions deploys `main` to GitHub Pages after you set Pages to GitHub Actions. Point AppGeyser at that URL, or upload the `dist` files if your plan accepts a static bundle. Web Bluetooth is optional and absent in the AppGeyser WebView.
 
-The AI panel calls `https://api.x.ai/v1/chat/completions` with your own key, stored only in `localStorage`. The model sees a compact BDL summary, documented in `docs/bdl.md`, and returns BDL that the editor turns into blocks. Import reads your own projects or other code you are allowed to translate; it does not execute imported JavaScript. Grid sharing uses a Kademlia-style relay over BroadcastChannel and manual WebRTC. Audio and graphics blocks use Web Audio and canvas/WebGL.
+The AI panel calls `https://api.x.ai/v1/chat/completions` with your own key, stored only in `localStorage`. The model sees a compact BDL summary, documented in `docs/bdl.md`. Clones, procedures with parameters and warp, a small costume and sound library, a drawing costume editor, and a localStorage backpack are in the editor. Import covers more Scratch opcodes, including procedures and clones, and more JavaScript syntax. Peers can join a room by QR code when an optional WebTorrent tracker URL is set. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB, and can hand the page to Chrome. The Android build is `android-wrapper/`; the AppGeyser path stays the static site.
 
-Not in this pass: clones, procedure parameters, the full Scratch opcode set, a public DHT bootstrap, phone-to-phone Bluetooth, and arbitrary shaders or meshes.
+Still absent: the full Scratch opcode set, a guaranteed public tracker, and phone-to-phone Bluetooth inside the AppGeyser WebView.

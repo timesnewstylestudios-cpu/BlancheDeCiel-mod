@@ -16,7 +16,7 @@ const STRUCTURE = new Set(['repeat', 'forever', 'if', 'repeatuntil']);
 export const KEYWORDS = [
   'sprite', 'pos', 'dir', 'shown', 'scale', 'pen', 'var', 'list', 'script', 'end', 'else',
   'define', 'clear-scripts', 'cleartable', 'table', 'tables-reset', 'edit', 'replace', 'insert',
-  'delete', 'delscript', 'title', 'tempo', 'when', 'flag', 'key', 'click', 'receive',
+  'delete', 'delscript', 'title', 'tempo', 'when', 'flag', 'key', 'click', 'receive', 'warp',
 ];
 
 function commandArity(opcode) {
@@ -27,7 +27,7 @@ function commandArity(opcode) {
   const optional = args.filter((arg) => arg.optional).length;
   return {
     min: args.length - optional,
-    max: opcode === 'row' ? 32 : args.length,
+    max: opcode === 'row' ? 32 : opcode === 'call' ? 8 : args.length,
   };
 }
 
@@ -211,6 +211,7 @@ function parseWhen(tokens) {
   const kind = tokens[1] && (tokens[1].type === 'word' || tokens[1].type === 'str') ? tokens[1].value : '';
   if (kind === 'flag' && tokens.length === 2) return makeBlock('whenflag', []);
   if (kind === 'click' && tokens.length === 2) return makeBlock('whenclick', []);
+  if (kind === 'clone' && tokens.length === 2) return makeBlock('whenclone', []);
   if (kind === 'key') {
     const exprs = parseExprs(tokens.slice(2));
     if (exprs.length !== 1) throw codeError('arity');
@@ -423,9 +424,21 @@ export function parseBdl(source) {
           if (exprs.length !== 1) throw codeError('arity');
           sprite.delscripts.push(asNumber(exprs[0], 0));
         } else if (op === 'define') {
-          if (exprs.length !== 1) throw codeError('arity');
+          if (exprs.length < 1) throw codeError('arity');
+          let warp = false;
+          let parts = exprs;
+          if (parts[0]?.kind === 'str' && parts[0].value === 'warp') {
+            warp = true;
+            parts = parts.slice(1);
+          }
+          if (!parts.length) throw codeError('arity');
           const blocks = [];
-          sprite.defines.push({ name: asText(exprs[0]), blocks });
+          sprite.defines.push({
+            name: asText(parts[0]),
+            params: parts.slice(1).map(asText),
+            warp,
+            blocks,
+          });
           stack.push({ type: 'define', blocks });
         } else if (op === 'script') {
           if (exprs.length !== 2) throw codeError('arity');
@@ -515,7 +528,10 @@ function applyParsed(project, file) {
   if (file.title != null) project.name = file.title;
   if (file.tempo != null) project.tempo = file.tempo || 120;
   if (file.shader != null) project.shader = file.shader;
-  if (file.reset3d) project.boxes = [];
+  if (file.reset3d) {
+    project.boxes = [];
+    project.spheres = [];
+  }
   if (file.camera) {
     project.camera.x = file.camera.x;
     project.camera.y = file.camera.y;
@@ -560,6 +576,8 @@ function applyParsed(project, file) {
         x: 36,
         y: 36 + sprite.scripts.length * 16,
         proc: define.name,
+        params: define.params || [],
+        warp: !!define.warp,
         blocks: define.blocks.map(materialize),
       });
     }
@@ -700,6 +718,7 @@ export function projectToBdl(project, options = {}) {
     }
   }
   for (const sprite of project.sprites) {
+    if (sprite.isClone) continue;
     lines.push(`sprite ${formatWord(sprite.name)}`);
     lines.push(`pos ${formatNumber(sprite.x)} ${formatNumber(sprite.y)}`);
     lines.push(`dir ${formatNumber(sprite.dir)}`);
@@ -715,7 +734,8 @@ export function projectToBdl(project, options = {}) {
     }
     lines.push('clear-scripts');
     for (const script of sprite.scripts.filter((item) => item.proc)) {
-      lines.push(`define ${formatWord(script.proc)}`);
+      const params = (script.params || []).map((name) => formatWord(name)).join(' ');
+      lines.push(`define ${script.warp ? 'warp ' : ''}${formatWord(script.proc)}${params ? ` ${params}` : ''}`);
       emitBlocks(script.blocks, 1, lines, budget);
       lines.push('end');
     }

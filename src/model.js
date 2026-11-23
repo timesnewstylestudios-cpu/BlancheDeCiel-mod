@@ -28,7 +28,12 @@ export function createSprite(name, extra = {}) {
     scripts: [],
     costume: null,
     costumeName: '',
+    costumes: [],
+    costumeIndex: 0,
     sounds: [],
+    isClone: false,
+    cloneParent: null,
+    effects: { ghost: 0 },
   };
 }
 
@@ -60,6 +65,7 @@ export function emptyProject() {
     jobLog: [],
     shader: 'none',
     boxes: [],
+    spheres: [],
     camera: { x: 0, y: 0, z: 280, yaw: 30, pitch: 20 },
     drawOps: [],
     aiBlocksEnabled: false,
@@ -120,7 +126,7 @@ export function comparable(project) {
 }
 
 export function findSprite(project, name) {
-  return project.sprites.find((sprite) => sprite.name === name) || null;
+  return project.sprites.find((sprite) => sprite.name === name && !sprite.isClone) || null;
 }
 
 const STAGE_NAMES = new Set(['Bühne', 'Buehne', 'Stage']);

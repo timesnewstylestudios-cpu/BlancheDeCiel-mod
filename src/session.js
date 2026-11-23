@@ -11,6 +11,7 @@ export const defaultSettings = {
   apiKey: '',
   model: 'grok-4.7',
   baseUrl: 'https://api.x.ai/v1',
+  trackerUrl: '',
 };
 
 export function loadSettings() {
@@ -28,6 +29,7 @@ export function saveSettings(settings) {
     apiKey: settings.apiKey || '',
     model: settings.model || defaultSettings.model,
     baseUrl: settings.baseUrl || defaultSettings.baseUrl,
+    trackerUrl: settings.trackerUrl || '',
   };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
   return next;
@@ -44,6 +46,7 @@ export function loadNodeId(makeId) {
 
 function slim(project) {
   const copy = cloneData(project);
+  copy.sprites = (copy.sprites || []).filter((sprite) => !sprite.isClone);
   const raw = JSON.stringify(copy);
   if (raw.length < 1500000) return raw;
   for (const sprite of copy.sprites) {
