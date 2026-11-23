@@ -1,0 +1,23 @@
+{
+  "name": "blanche-de-ciel",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "BlancheDeCiel-mod — block editor compatible with Scratch/PenguinMod projects, static and offline-capable.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test test/*.js"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "vite": "^6.4.1"
+  }
+}

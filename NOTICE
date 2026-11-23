@@ -1,0 +1,50 @@
+BlancheDeCiel-mod
+Copyright (C) 2026 timesnewstylestudios-cpu and contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+The full license text is in the file LICENSE.
+
+---------------------------------------------------------------------------
+Attribution
+---------------------------------------------------------------------------
+
+BlancheDeCiel-mod is an original static block editor. It is not the
+PenguinMod web application, and it does not vendor the PenguinMod GUI or
+VM build (those projects currently require a Node.js 16 / webpack 4
+toolchain that does not build reproducibly on current Node). It is
+intended to be compatible with a documented subset of Scratch 3 and
+PenguinMod projects and extension conventions.
+
+Block category colours for the core categories are taken from
+PenguinMod-Blocks (itself the Scratch Blocks palette):
+
+  vendor/penguinmod-blocks/core/colours.js
+  Copyright 2016 Massachusetts Institute of Technology
+  Licensed under the Apache License, Version 2.0.
+  See that file's header and vendor/apache-2.0.txt.
+
+Upstream revisions this tree was checked against are recorded in
+vendor/UPSTREAM.md.
+
+Scratch is a project of the Scratch Team / MIT. Scratch Blocks is
+Apache-2.0. scratch-vm's upstream license is BSD-3-Clause; PenguinMod-Vm
+as published also carries a Mozilla Public License 2.0 file. TurboWarp's
+and PenguinMod's modifications to the Scratch GUI are published under
+GPL-3.0. Names and block ideas are used here for compatibility.
+"Scratch" is a trademark of the Scratch Team. "PenguinMod" is a project
+of its contributors. BlancheDeCiel is not affiliated with either.
+
+Third-party runtime dependency:
+  fflate — MIT License, https://github.com/101arrowz/fflate
+
+Build tool (not shipped in the static app):
+  Vite — MIT License
