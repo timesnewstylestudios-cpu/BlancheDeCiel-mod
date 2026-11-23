@@ -1,0 +1,19 @@
+{
+  "name": "blanche-de-ciel-android",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Optionale Capacitor-Hülle mit Bluetooth LE. Die Website selbst bleibt ohne diese Abhängigkeit baubar.",
+  "scripts": {
+    "prepare": "node scripts/prepare.mjs",
+    "sync": "npm run prepare && cap sync",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "^7.1.1",
+    "@capacitor/android": "^7.4.2",
+    "@capacitor/core": "^7.4.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.2"
+  }
+}

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { createGridNode } from './grid.js';
+import { connectTracker } from './signal.js';
 import { createLink, webrtcAvailable } from './webrtc.js';
 
 export function startBrowserGrid(nodeId) {
@@ -83,6 +84,22 @@ export function startBrowserGrid(nodeId) {
       const link = links[links.length - 1];
       if (!link) throw new Error('no-offer');
       await link.accept(sdp);
+    },
+    joinRoom(url, room, onStatus) {
+      this.roomLink?.close();
+      this.roomLink = connectTracker({
+        url,
+        room,
+        peerId: nodeId,
+        onSignal: (event) => onStatus?.(event),
+        createOffer: () => this.makeOffer(),
+        acceptOffer: (sdp) => this.acceptOffer(sdp),
+        acceptAnswer: (sdp) => this.acceptAnswer(sdp),
+      });
+    },
+    leaveRoom() {
+      this.roomLink?.close();
+      this.roomLink = null;
     },
   };
 }

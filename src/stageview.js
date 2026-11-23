@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { STAGE_H, STAGE_W, applyShader2d, drawBoxes, replayDrawOps, scratchToCanvas, canvasToScratch } from './paint.js';
+import { STAGE_H, STAGE_W, applyShader2d, drawBoxes, drawFloor, drawSpheres, replayDrawOps, scratchToCanvas, canvasToScratch } from './paint.js';
 import { createGL } from './glshader.js';
 
 const images = new Map();
+let drawnOps = -1;
 
 function costume(sprite) {
   if (!sprite.costume) return null;
@@ -20,6 +21,7 @@ function drawSprite(ctx, sprite, selected) {
   const point = scratchToCanvas(sprite.x, sprite.y);
   const scale = (sprite.size || 100) / 100;
   ctx.save();
+  ctx.globalAlpha = 1 - Math.min(100, Math.max(0, sprite.effects?.ghost || 0)) / 100;
   ctx.translate(point.x, point.y);
   ctx.rotate((sprite.dir || 0) * Math.PI / 180);
   const image = costume(sprite);
@@ -96,10 +98,17 @@ export function createStageView(root) {
     const g = gfx.getContext('2d');
     v.fillStyle = '#d7eef8';
     v.fillRect(0, 0, STAGE_W, STAGE_H);
-    replayDrawOps(p, g, project.drawOps);
+    const ops = project.drawOps || [];
+    if (ops.length !== drawnOps) {
+      replayDrawOps(p, g, ops);
+      drawnOps = ops.length;
+    }
     v.drawImage(pen, 0, 0);
     v.drawImage(gfx, 0, 0);
-    drawBoxes(v, project.boxes, project.camera || { x: 0, y: 0, z: 280, yaw: 30, pitch: 20 });
+    const camera = project.camera || { x: 0, y: 0, z: 280, yaw: 30, pitch: 20 };
+    if ((project.boxes || []).length || (project.spheres || []).length) drawFloor(v, camera);
+    drawBoxes(v, project.boxes, camera);
+    drawSpheres(v, project.spheres, camera);
     for (const sprite of project.sprites) {
       if (sprite.isStage || sprite.visible === false) continue;
       drawSprite(v, sprite, sprite.id === selectedId);

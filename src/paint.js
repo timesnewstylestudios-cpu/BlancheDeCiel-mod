@@ -54,6 +54,54 @@ function boxCorners(box) {
   return corners;
 }
 
+export function drawFloor(ctx, camera) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(22,50,79,0.25)';
+  ctx.lineWidth = 1;
+  for (let i = -4; i <= 4; i += 1) {
+    const a = projectPoint({ x: i * 40, y: -80, z: -160 }, camera);
+    const b = projectPoint({ x: i * 40, y: -80, z: 160 }, camera);
+    const c = projectPoint({ x: -160, y: -80, z: i * 40 }, camera);
+    const d = projectPoint({ x: 160, y: -80, z: i * 40 }, camera);
+    if (!a || !b || !c || !d) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(d.x, d.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawSpheres(ctx, spheres, camera) {
+  const drawn = [];
+  for (const sphere of spheres || []) {
+    const center = projectPoint(sphere, camera);
+    const edge = projectPoint({ x: sphere.x + (sphere.size || 20) / 2, y: sphere.y, z: sphere.z }, camera);
+    if (!center || !edge) continue;
+    drawn.push({ center, radius: Math.max(2, Math.hypot(edge.x - center.x, edge.y - center.y)), depth: center.depth, color: sphere.color || '#2E86AB' });
+  }
+  drawn.sort((a, b) => b.depth - a.depth);
+  for (const sphere of drawn) {
+    const gradient = ctx.createRadialGradient(
+      sphere.center.x - sphere.radius * 0.3,
+      sphere.center.y - sphere.radius * 0.3,
+      sphere.radius * 0.2,
+      sphere.center.x,
+      sphere.center.y,
+      sphere.radius,
+    );
+    gradient.addColorStop(0, '#ffffff');
+    gradient.addColorStop(0.3, sphere.color);
+    gradient.addColorStop(1, '#16324f');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(sphere.center.x, sphere.center.y, sphere.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 export function drawBoxes(ctx, boxes, camera) {
   const faces = [];
   for (const box of boxes || []) {
@@ -164,6 +212,27 @@ export function applyShader2d(image, preset, time) {
           }
         }
       }
+    }
+  } else if (preset === 'gray' || preset === 'sepia' || preset === 'edge') {
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (preset === 'gray') {
+        const y = r * 0.299 + g * 0.587 + b * 0.114;
+        out[i] = out[i + 1] = out[i + 2] = y;
+      } else if (preset === 'sepia') {
+        out[i] = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+        out[i + 1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+        out[i + 2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+      } else {
+        const x = (i / 4) % width;
+        const y = Math.floor(i / 4 / width);
+        const j = (Math.min(height - 1, y + 1) * width + Math.min(width - 1, x + 1)) * 4;
+        const edge = Math.abs(data[i] - data[j]) + Math.abs(g - data[j + 1]);
+        out[i] = out[i + 1] = out[i + 2] = edge;
+      }
+      out[i + 3] = data[i + 3];
     }
   } else if (preset === 'vignette' || preset === 'wave') {
     const cx = width / 2;

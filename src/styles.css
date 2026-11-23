@@ -94,6 +94,12 @@ footer { padding: 6px 12px; background: white; border-top: 1px solid var(--line)
 #ghost { position: fixed; z-index: 20; pointer-events: none; opacity: .85; }
 #ask { position: fixed; inset: auto 12px 12px 12px; background: white; border-radius: 16px; padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.2); display: flex; gap: 8px; }
 #ask[hidden] { display: none; }
+#draw { position: fixed; inset: auto 12px 12px 12px; background: white; border-radius: 16px; padding: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+#draw[hidden] { display: none; }
+#draw canvas { width: 160px; height: 160px; border: 1px solid var(--line); touch-action: none; background:
+  linear-gradient(45deg, #eee 25%, transparent 25%), linear-gradient(-45deg, #eee 25%, transparent 25%);
+  background-size: 16px 16px; }
+#qr svg { width: min(220px, 70vw); height: auto; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .grow { flex: 1; }
 
@@ -102,7 +108,7 @@ footer { padding: 6px 12px; background: white; border-top: 1px solid var(--line)
   .app:not([data-pane="blocks"]) .cats,
   .app:not([data-pane="blocks"]) .palette,
   .app:not([data-pane="scripts"]) .workspace,
-  .app:not([data-pane="stage"]):not([data-pane="ai"]):not([data-pane="import"]):not([data-pane="grid"]):not([data-pane="settings"]):not([data-pane="help"]) .side {
+  .app:not([data-pane="stage"]):not([data-pane="ai"]):not([data-pane="import"]):not([data-pane="grid"]):not([data-pane="backpack"]):not([data-pane="settings"]):not([data-pane="help"]) .side {
     display: none;
   }
   .cats, .palette { max-height: none; }

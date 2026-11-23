@@ -18,6 +18,9 @@ const COMMANDS = {
   motion_sety: ['sety', ['Y']],
   motion_changeyby: ['changey', ['DY']],
   motion_pointindirection: ['point', ['DIRECTION']],
+  motion_glidesecstoxy: ['glide', ['SECS', 'X', 'Y']],
+  motion_ifonedgebounce: ['bounce', []],
+  motion_pointtowards: ['pointtowards', []],
   motion_xposition: ['x', []],
   motion_yposition: ['y', []],
   motion_direction: ['dir', []],
@@ -30,6 +33,9 @@ const COMMANDS = {
   looks_setsizeto: ['setsize', ['SIZE']],
   looks_changesizeby: ['changesize', ['CHANGE']],
   looks_size: ['size', []],
+  looks_nextcostume: ['nextcostume', []],
+  looks_switchcostumeto: ['switchcostume', ['COSTUME']],
+  looks_cleargraphiceffects: ['ghost', []],
   event_whenflagclicked: ['whenflag', []],
   event_whenkeypressed: ['whenkey', []],
   event_whenthisspriteclicked: ['whenclick', []],
@@ -42,6 +48,11 @@ const COMMANDS = {
   control_if: ['if', ['CONDITION']],
   control_if_else: ['if', ['CONDITION']],
   control_repeat_until: ['repeatuntil', ['CONDITION']],
+  control_wait_until: ['waituntil', ['CONDITION']],
+  control_create_clone_of: ['clone', []],
+  control_delete_this_clone: ['deleteclone', []],
+  control_start_as_clone: ['whenclone', []],
+  control_stop: ['stop', []],
   sensing_askandwait: ['ask', ['QUESTION']],
   sensing_answer: ['answer', []],
   sensing_timer: ['timer', []],
@@ -50,6 +61,10 @@ const COMMANDS = {
   sensing_mousey: ['mousey', []],
   sensing_mousedown: ['mousedown', []],
   sensing_keypressed: ['keydown', ['KEY_OPTION']],
+  sensing_touchingobject: ['touching', []],
+  sensing_distanceto: ['distance', []],
+  sensing_current: ['current', []],
+  sensing_loudness: ['volume', []],
   operator_add: ['add', ['NUM1', 'NUM2']],
   operator_subtract: ['sub', ['NUM1', 'NUM2']],
   operator_multiply: ['mul', ['NUM1', 'NUM2']],
@@ -66,6 +81,7 @@ const COMMANDS = {
   operator_and: ['and', ['OPERAND1', 'OPERAND2']],
   operator_or: ['or', ['OPERAND1', 'OPERAND2']],
   operator_not: ['not', ['OPERAND']],
+  operator_contains: ['contains', ['STRING1', 'STRING2']],
   pen_penDown: ['pendown', []],
   pen_penUp: ['penup', []],
   pen_clear: ['penclear', []],
@@ -199,6 +215,9 @@ export function importProjectJson(json, files = {}, warnings = []) {
       return shadowToExpr(slot === 1 ? input[1] : input[2], names);
     };
     const blockToExpr = (sb) => {
+      if (sb.opcode === 'argument_reporter_string_number' || sb.opcode === 'argument_reporter_boolean') {
+        return { kind: 'var', name: sb.fields?.VALUE?.[0] || 'arg' };
+      }
       if (sb.opcode === 'data_variable') return { kind: 'var', name: sb.fields?.VARIABLE?.[0] || 'var' };
       if (sb.opcode === 'data_itemoflist') {
         return { kind: 'block', opcode: 'item', args: [readInput(sb.inputs?.INDEX), { kind: 'str', value: sb.fields?.LIST?.[0] || 'liste' }] };
@@ -243,6 +262,17 @@ export function importProjectJson(json, files = {}, warnings = []) {
       if (sb.opcode === 'data_listcontainsitem') {
         return block('has', [{ kind: 'str', value: sb.fields?.LIST?.[0] || 'liste' }, readInput(sb.inputs?.ITEM)]);
       }
+      if (sb.opcode === 'procedures_call') {
+        const ids = parseJsonList(sb.mutation?.argumentids);
+        return block('call', [
+          { kind: 'str', value: sb.mutation?.proccode || 'block' },
+          ...ids.map((id) => readInput(sb.inputs?.[id])),
+        ]);
+      }
+      if (sb.opcode === 'looks_seteffectto' || sb.opcode === 'looks_changeeffectby') {
+        const effect = sb.fields?.EFFECT?.[0];
+        if (effect === 'GHOST') return block('ghost', [readInput(sb.inputs?.VALUE)]);
+      }
       const mapped = COMMANDS[sb.opcode];
       if (!mapped) {
         warnings.push(sb.opcode || 'unknown');
@@ -256,6 +286,13 @@ export function importProjectJson(json, files = {}, warnings = []) {
       if ((opcode === 'whenreceive' || opcode === 'broadcast') && sb.fields?.BROADCAST_OPTION && !args.length) {
         args.push({ kind: 'str', value: String(sb.fields.BROADCAST_OPTION[0]) });
       }
+      if (opcode === 'clone') args.push({ kind: 'str', value: sb.fields?.CLONE_OPTION?.[0] === '_myself_' ? 'myself' : (sb.fields?.CLONE_OPTION?.[0] || 'myself') });
+      if (opcode === 'stop') args.push({ kind: 'str', value: String(sb.fields?.STOP_OPTION?.[0] || 'all').replace('other scripts in sprite', 'other').replace('this script', 'this') });
+      if (opcode === 'pointtowards' || opcode === 'distance') args.push({ kind: 'str', value: menuName(sb.fields?.TO?.[0] || sb.fields?.DISTANCETOMENU?.[0]) });
+      if (opcode === 'touching') args.push({ kind: 'str', value: menuName(sb.fields?.TOUCHINGOBJECTMENU?.[0]) });
+      if (opcode === 'current') args.push({ kind: 'str', value: menuName(sb.fields?.CURRENTMENU?.[0]) });
+      if (opcode === 'ghost' && !args.length) args.push({ kind: 'num', value: 0 });
+      if (opcode === 'switchcostume' && !args.length && sb.fields?.COSTUME) args.push({ kind: 'str', value: String(sb.fields.COSTUME[0]) });
       const body = sb.inputs?.SUBSTACK ? chain(sb.inputs.SUBSTACK[1]) : null;
       const elseBody = sb.inputs?.SUBSTACK2 ? chain(sb.inputs.SUBSTACK2[1]) : null;
       const made = block(opcode, args, {
@@ -277,6 +314,20 @@ export function importProjectJson(json, files = {}, warnings = []) {
     };
     for (const [id, sb] of Object.entries(blocks)) {
       if (!sb || !sb.topLevel || sb.parent) continue;
+      if (sb.opcode === 'procedures_definition') {
+        const proto = blocks[sb.inputs?.custom_block?.[1]] || {};
+        const mutation = proto.mutation || sb.mutation || {};
+        sprite.scripts.push({
+          id: uid(),
+          x: Number(sb.x) || 48,
+          y: Number(sb.y) || 48,
+          proc: mutation.proccode || 'block',
+          params: parseJsonList(mutation.argumentnames),
+          warp: mutation.warp === true || mutation.warp === 'true',
+          blocks: chain(sb.next),
+        });
+        continue;
+      }
       sprite.scripts.push({
         id: uid(),
         x: Number(sb.x) || 48,
@@ -285,16 +336,40 @@ export function importProjectJson(json, files = {}, warnings = []) {
         blocks: chain(id),
       });
     }
-    const costume = (target.costumes || [])[target.currentCostume || 0];
-    if (costume?.assetId && costume.md5ext && files[costume.md5ext] && files[costume.md5ext].length < 400000) {
-      const mime = costume.dataFormat === 'svg' ? 'image/svg+xml' : `image/${costume.dataFormat || 'png'}`;
-      sprite.costume = `data:${mime};base64,${bytesToBase64(files[costume.md5ext])}`;
+    sprite.costumes = [];
+    for (const item of target.costumes || []) {
+      if (!item?.md5ext || !files[item.md5ext] || files[item.md5ext].length >= 400000) continue;
+      const mime = item.dataFormat === 'svg' ? 'image/svg+xml' : `image/${item.dataFormat || 'png'}`;
+      sprite.costumes.push({ name: item.name || 'kostüm', dataUrl: `data:${mime};base64,${bytesToBase64(files[item.md5ext])}` });
+    }
+    sprite.costumeIndex = Math.max(0, Number(target.currentCostume) || 0);
+    const costume = sprite.costumes[sprite.costumeIndex] || sprite.costumes[0];
+    if (costume) {
+      sprite.costume = costume.dataUrl;
       sprite.costumeName = costume.name || '';
     }
     project.sprites.push(sprite);
   }
   if (!project.sprites.some((sprite) => sprite.isStage) && project.sprites[0]) project.sprites[0].isStage = true;
   return project;
+}
+
+function parseJsonList(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value !== 'string' || !value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function menuName(value) {
+  const text = String(value || 'mouse');
+  if (text === '_mouse_' || text === 'mouse') return 'mouse';
+  if (text === '_edge_' || text === 'edge') return 'edge';
+  return text.toLowerCase();
 }
 
 function bytesToBase64(bytes) {

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { stageOf } from './model.js';
+import { cloneData, stageOf, uid } from './model.js';
 import { applyBdl, extractBdl } from './bdl.js';
 import { evaluateJob, jobKey } from './jobs.js';
 import { toPseudo } from './decompile.js';
@@ -201,6 +201,11 @@ export function createRuntime(project, services = {}) {
         return row[Math.floor(toNumber(v[2])) - 1] ?? '';
       }
       case 'jobresult': return project.jobResults[jobKey(String(v[0] ?? ''), String(v[1] ?? ''), toNumber(v[2]))] ?? '';
+      case 'contains': return String(v[0] ?? '').toLowerCase().includes(String(v[1] ?? '').toLowerCase());
+      case 'touching': return touching(sprite, String(v[0] ?? 'edge'));
+      case 'distance': return Math.hypot(sprite.x - input.mouse.x, sprite.y - input.mouse.y);
+      case 'costume': return (sprite.costumeIndex || 0) + 1;
+      case 'current': return currentValue(String(v[0] ?? 'second'));
       case 'peers': return grid.peerCount();
       case 'bt': return bluetooth.available() ? 1 : 0;
       case 'ext': return callExtension(sprite, String(v[0] ?? ''), String(v[1] ?? ''), v.slice(2));
@@ -239,12 +244,58 @@ sprite.x = snap(x);
     return settled;
   }
 
-  function procBody(sprite, name) {
+  function findProc(sprite, name) {
     const own = [...sprite.scripts].reverse().find((script) => script.proc === name);
-    if (own) return own.blocks;
+    if (own) return own;
     const stageSprite = stage();
-    const shared = stageSprite && [...stageSprite.scripts].reverse().find((script) => script.proc === name);
-    return shared ? shared.blocks : null;
+    return (stageSprite && [...stageSprite.scripts].reverse().find((script) => script.proc === name)) || null;
+  }
+
+  function popFrame(thread) {
+    const frame = thread.frames.pop();
+    if (frame?.restore) {
+      const owner = spriteById(frame.restore.spriteId);
+      if (owner) {
+        for (const [name, value] of Object.entries(frame.restore.saved)) {
+          if (value === undefined) delete owner.variables[name];
+          else owner.variables[name] = value;
+        }
+      }
+    }
+    return frame;
+  }
+
+  function inWarp(thread) {
+    return thread.frames.some((frame) => frame.warp);
+  }
+
+  function showCostume(sprite) {
+    const list = sprite.costumes || [];
+    if (!list.length) return;
+    const index = ((sprite.costumeIndex || 0) % list.length + list.length) % list.length;
+    sprite.costumeIndex = index;
+    sprite.costume = list[index].dataUrl;
+    sprite.costumeName = list[index].name || '';
+  }
+
+  function touching(sprite, what) {
+    if (what === 'mouse') return Math.hypot(sprite.x - input.mouse.x, sprite.y - input.mouse.y) < 28 * ((sprite.size || 100) / 100);
+    const limitX = 240 - 12 * ((sprite.size || 100) / 100);
+    const limitY = 180 - 12 * ((sprite.size || 100) / 100);
+    return Math.abs(sprite.x) > limitX || Math.abs(sprite.y) > limitY;
+  }
+
+  function currentValue(key) {
+    const date = new Date(now());
+    const values = {
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      date: date.getDate(),
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+      second: date.getSeconds(),
+    };
+    return values[key] ?? 0;
   }
 
   function launch(sprite, blocks, ip) {
@@ -308,8 +359,8 @@ sprite.x = snap(x);
     },
     call(thread, block, sprite) {
       const name = String(evalExpr(block.args[0], sprite));
-      const body = procBody(sprite, name);
-      if (!body) {
+      const proc = findProc(sprite, name);
+      if (!proc) {
         writeLog(`Unbekannter Block ${name}`);
         return;
       }
@@ -317,7 +368,99 @@ sprite.x = snap(x);
         writeLog('Rekursion zu tief');
         return;
       }
-      thread.frames.push({ blocks: body, ip: 0, mode: 'seq' });
+      const saved = {};
+      (proc.params || []).forEach((param, index) => {
+        saved[param] = Object.prototype.hasOwnProperty.call(sprite.variables, param) ? sprite.variables[param] : undefined;
+        const arg = block.args[index + 1];
+        sprite.variables[param] = arg == null ? 0 : evalExpr(arg, sprite);
+      });
+      thread.frames.push({
+        blocks: proc.blocks,
+        ip: 0,
+        mode: 'seq',
+        warp: !!proc.warp,
+        restore: { spriteId: sprite.id, saved },
+      });
+    },
+    clone(thread, block, sprite) {
+      const requested = String(evalExpr(block.args[0], sprite) || 'myself');
+      const source = requested === 'myself' || requested === 'mich' || requested === '_myself_'
+        ? sprite
+        : project.sprites.find((item) => item.name === requested && !item.isClone) || sprite;
+      if (project.sprites.filter((item) => item.isClone).length >= 300) return;
+      const copy = cloneData(source);
+      copy.id = uid();
+      copy.isClone = true;
+      copy.isStage = false;
+      copy.cloneParent = source.cloneParent || source.id;
+      copy.bubble = null;
+      project.sprites.push(copy);
+      for (const script of copy.scripts) {
+        if (script.proc) continue;
+        const hat = script.blocks[0];
+        if (hat?.opcode === 'whenclone') launch(copy, script.blocks, 1);
+      }
+    },
+    deleteclone(thread, block, sprite) {
+      if (sprite.isClone) project.sprites = project.sprites.filter((item) => item.id !== sprite.id);
+      thread.done = true;
+    },
+    waituntil(thread, block, sprite) {
+      if (truthy(evalExpr(block.args[0], sprite))) return undefined;
+      return { retry: 40 };
+    },
+    stop(thread, block, sprite) {
+      const which = String(evalExpr(block.args[0], sprite) || 'all');
+      if (which === 'this') {
+        thread.done = true;
+        return;
+      }
+      for (const other of threads) {
+        if (which === 'other' && other === thread) continue;
+        if (which === 'other' && other.spriteId !== sprite.id) continue;
+        other.done = true;
+      }
+      if (which === 'all') thread.done = true;
+    },
+    bounce(thread, block, sprite) {
+      let dir = sprite.dir;
+      if (Math.abs(sprite.x) > 230) dir = wrap360(180 - dir);
+      if (Math.abs(sprite.y) > 170) dir = wrap360(-dir);
+      sprite.dir = dir;
+      sprite.x = Math.max(-230, Math.min(230, sprite.x));
+      sprite.y = Math.max(-170, Math.min(170, sprite.y));
+    },
+    pointtowards(thread, block, sprite) {
+      sprite.dir = wrap360(Math.atan2(input.mouse.x - sprite.x, input.mouse.y - sprite.y) * 180 / Math.PI);
+    },
+    glide(thread, block, sprite) {
+      const seconds = Math.max(0, toNumber(evalExpr(block.args[0], sprite)));
+      const x = toNumber(evalExpr(block.args[1], sprite));
+      const y = toNumber(evalExpr(block.args[2], sprite));
+      const total = Math.max(1, Math.round(seconds * 30));
+      thread.frames.push({
+        blocks: [],
+        ip: 0,
+        mode: 'glide',
+        glide: { x, y, sx: sprite.x, sy: sprite.y, left: total, total },
+      });
+    },
+    switchcostume(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite));
+      const list = sprite.costumes || [];
+      const index = list.findIndex((item) => item.name === name);
+      const numeric = Number(name);
+      sprite.costumeIndex = index >= 0 ? index : (Number.isFinite(numeric) ? Math.max(0, numeric - 1) : 0);
+      showCostume(sprite);
+    },
+    nextcostume(thread, block, sprite) {
+      if (!(sprite.costumes || []).length) return;
+      sprite.costumeIndex = (sprite.costumeIndex || 0) + 1;
+      showCostume(sprite);
+    },
+    ghost(thread, block, sprite) {
+      sprite.effects = sprite.effects || { ghost: 0 };
+      sprite.effects.ghost = Math.max(0, Math.min(100, toNumber(evalExpr(block.args[0], sprite))));
     },
     broadcast(thread, block, sprite) {
       const message = String(evalExpr(block.args[0], sprite));
@@ -456,7 +599,19 @@ sprite.x = snap(x);
       project.camera.yaw = toNumber(evalExpr(block.args[0], sprite));
       project.camera.pitch = toNumber(evalExpr(block.args[1], sprite));
     },
-    clear3d() { project.boxes = []; },
+    clear3d() {
+      project.boxes = [];
+      project.spheres = [];
+    },
+    sphere3d(thread, block, sprite) {
+      project.spheres.push({
+        x: toNumber(evalExpr(block.args[0], sprite)),
+        y: toNumber(evalExpr(block.args[1], sprite)),
+        z: toNumber(evalExpr(block.args[2], sprite)),
+        size: toNumber(evalExpr(block.args[3], sprite)),
+        color: sprite.penColor,
+      });
+    },
     row(thread, block, sprite) {
       const name = String(evalExpr(block.args[0], sprite));
       const cells = block.args.slice(1).map((arg) => evalExpr(arg, sprite));
@@ -576,13 +731,21 @@ sprite.x = snap(x);
       thread.done = true;
       return 'done';
     }
+    if (frame.mode === 'glide') {
+      const glide = frame.glide;
+      const t = 1 - (glide.left - 1) / glide.total;
+      relocate(sprite, glide.sx + (glide.x - glide.sx) * t, glide.sy + (glide.y - glide.sy) * t);
+      glide.left -= 1;
+      if (glide.left <= 0) popFrame(thread);
+      return 'yield';
+    }
     if (frame.mode === 'until' && frame.ip === 0 && truthy(evalExpr(frame.cond, sprite))) {
-      thread.frames.pop();
+      popFrame(thread);
       return 'ok';
     }
     if (frame.mode === 'repeat' && frame.ip === 0) {
       if (frame.remaining <= 0) {
-        thread.frames.pop();
+        popFrame(thread);
         return 'ok';
       }
       frame.remaining -= 1;
@@ -590,13 +753,13 @@ sprite.x = snap(x);
     if (frame.ip >= frame.blocks.length) {
       if (frame.mode === 'forever') {
         frame.ip = 0;
-        return 'yield';
+        return inWarp(thread) ? 'ok' : 'yield';
       }
       if (frame.mode === 'repeat' || frame.mode === 'until') {
         frame.ip = 0;
-        return frame.mode === 'until' ? 'yield' : 'ok';
+        return frame.mode === 'until' && !inWarp(thread) ? 'yield' : 'ok';
       }
-      thread.frames.pop();
+      popFrame(thread);
       return 'ok';
     }
     const block = frame.blocks[frame.ip];
@@ -626,10 +789,11 @@ sprite.x = snap(x);
   function step() {
     const clock = now();
     let steps = 0;
-    for (let index = 0; index < threads.length && steps < 2000; index += 1) {
+    for (let index = 0; index < threads.length && steps < 12000; index += 1) {
       const thread = threads[index];
       let local = 0;
-      while (local < 300 && steps < 2000 && !thread.done && thread.waitUntil <= clock) {
+      const budget = inWarp(thread) ? 8000 : 300;
+      while (local < budget && steps < 12000 && !thread.done && thread.waitUntil <= clock) {
         const action = stepThread(thread, clock);
         local += 1;
         steps += 1;
