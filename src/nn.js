@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
- * Small networks on the CPU. Dense layers train by backprop.
- * Conv, RNN, LSTM-light and attention-light train by finite differences
- * and stay on short vectors. There is no WebGPU kernel in this version.
+ * Networks on the CPU. Dense layers train by backprop.
+ * LSTM runs a real multi-step cell. Attention is one head over a short sequence.
+ * Vectors stay at or below 128. Accelerated matmul lives in accel.js.
  */
 
 import { decodeMatrix, encodeMatrix } from './weights.js';
 
-const MAX = 32;
+const MAX = 128;
 
 function clampCount(value) {
   const number = Math.max(1, Math.floor(Number(value) || 1));
@@ -47,6 +47,20 @@ export function addLayer(net, spec) {
     layer.units = 1;
   } else if (type === 'attention') {
     layer.units = input;
+    layer.dim = clampCount(spec.dim || 1);
+    layer.w = [zeros(1)];
+    layer.b = [0];
+  } else if (type === 'lstm') {
+    layer.h = zeros(units);
+    layer.c = zeros(units);
+    layer.gates = {};
+    for (const name of ['i', 'f', 'o', 'g']) {
+      layer.gates[name] = {
+        w: Array.from({ length: units }, () => Array.from({ length: input }, () => next() * 0.1)),
+        u: Array.from({ length: units }, () => Array.from({ length: units }, () => next() * 0.1)),
+        b: zeros(units),
+      };
+    }
     layer.w = [zeros(1)];
     layer.b = [0];
   } else {
@@ -128,37 +142,55 @@ function sigmoid(value) {
   return 1 / (1 + Math.exp(-Math.max(-20, Math.min(20, value))));
 }
 
-function lstmForward(layer, input) {
-  const gates = [[], [], [], []];
-  for (let gate = 0; gate < 4; gate += 1) {
-    for (let unit = 0; unit < layer.units; unit += 1) {
-      const row = layer.w[unit] || [];
-      let sum = layer.b[unit] || 0;
-      for (let col = 0; col < layer.input; col += 1) sum += (row[col] || 0) * (input[col] || 0);
-      for (let col = 0; col < layer.units; col += 1) sum += (row[layer.input + col] || 0) * (layer.h[col] || 0);
-      gates[gate].push(sum + gate * 0.01 * unit);
-    }
-  }
-  const out = [];
-  for (let unit = 0; unit < layer.units; unit += 1) {
-    const inputGate = sigmoid(gates[0][unit]);
-    const forget = sigmoid(gates[1][unit]);
-    const outputGate = sigmoid(gates[2][unit]);
-    const candidate = Math.tanh(gates[3][unit]);
-    layer.c[unit] = forget * (layer.c[unit] || 0) + inputGate * candidate;
-    out.push(outputGate * Math.tanh(layer.c[unit]));
-  }
-  layer.h = out.slice();
-  return { out, input: input.slice() };
+function mixGate(gate, input, hidden) {
+  return gate.b.map((bias, unit) => {
+    let sum = bias;
+    for (let col = 0; col < input.length; col += 1) sum += (gate.w[unit][col] || 0) * (input[col] || 0);
+    for (let col = 0; col < hidden.length; col += 1) sum += (gate.u[unit][col] || 0) * (hidden[col] || 0);
+    return sum;
+  });
 }
 
-function attentionForward(layer, input) {
-  const query = input[input.length - 1] || 0;
-  const scores = input.map((value) => query * value);
+function lstmStep(layer, input) {
+  const i = mixGate(layer.gates.i, input, layer.h).map(sigmoid);
+  const f = mixGate(layer.gates.f, input, layer.h).map(sigmoid);
+  const o = mixGate(layer.gates.o, input, layer.h).map(sigmoid);
+  const g = mixGate(layer.gates.g, input, layer.h).map((value) => Math.tanh(value));
+  const next = [];
+  for (let unit = 0; unit < layer.units; unit += 1) {
+    layer.c[unit] = f[unit] * (layer.c[unit] || 0) + i[unit] * g[unit];
+    next.push(o[unit] * Math.tanh(layer.c[unit]));
+  }
+  layer.h = next;
+  return next.slice();
+}
+
+function lstmForward(layer, input) {
+  const width = Math.max(1, layer.input || 1);
+  const steps = Math.max(1, Math.floor(input.length / width));
+  let last = layer.h.slice();
+  for (let step = 0; step < steps; step += 1) last = lstmStep(layer, input.slice(step * width, (step + 1) * width));
+  return { out: last, input: input.slice() };
+}
+
+function softmax(scores) {
   const peak = Math.max(...scores, 0);
   const exps = scores.map((value) => Math.exp(value - peak));
   const sum = exps.reduce((total, value) => total + value, 0) || 1;
-  return { out: exps.map((value) => value / sum), input: input.slice() };
+  return exps.map((value) => value / sum);
+}
+
+function attentionForward(layer, input) {
+  const dim = Math.max(1, layer.dim || 1);
+  const seq = Math.max(1, Math.floor(input.length / dim));
+  const tokens = [];
+  for (let index = 0; index < seq; index += 1) tokens.push(input.slice(index * dim, (index + 1) * dim));
+  const query = tokens[tokens.length - 1];
+  const scores = tokens.map((token) => token.reduce((sum, value, index) => sum + value * (query[index] || 0), 0) / Math.sqrt(dim));
+  const weights = softmax(scores);
+  layer.weights = weights;
+  const out = Array.from({ length: dim }, (_, col) => weights.reduce((sum, weight, index) => sum + weight * (tokens[index][col] || 0), 0));
+  return { out, weights, input: input.slice() };
 }
 
 function forwardLayer(layer, input) {
@@ -291,6 +323,8 @@ export function exportNet(net) {
       input: layer.input,
       activation: layer.activation,
       kernel: layer.kernel,
+      dim: layer.dim,
+      gates: layer.gates || null,
       b: layer.b || [],
       w: (layer.w || []).map((row) => encodeMatrix([row], { rank: 1, residualCount: row.length })),
     })),
@@ -307,6 +341,8 @@ export function importNet(pack) {
     const made = net.layers[net.layers.length - 1];
     made.b = (layer.b || []).slice();
     made.w = (layer.w || []).map((row) => decodeMatrix(row)[0]);
+    if (layer.gates) made.gates = layer.gates;
+    if (layer.dim) made.dim = layer.dim;
   }
   return net;
 }

@@ -4,7 +4,7 @@ import { createGridNode } from './grid.js';
 import { connectTracker } from './signal.js';
 import { createLink, webrtcAvailable } from './webrtc.js';
 
-export function startBrowserGrid(nodeId) {
+export function startBrowserGrid(nodeId, iceServers = () => undefined) {
   const channels = new Set();
   let bc = null;
   const transport = {
@@ -62,6 +62,10 @@ export function startBrowserGrid(nodeId) {
     else channel.onopen = () => channel.send(JSON.stringify({ t: 'ping', from: nodeId, to: '*' }));
   }
 
+  function openLink() {
+    return createLink(watch, iceServers() || [{ urls: 'stun:stun.l.google.com:19302' }]);
+  }
+
   return {
     node,
     tabLink: !!bc,
@@ -71,12 +75,12 @@ export function startBrowserGrid(nodeId) {
       bc?.close();
     },
     async makeOffer() {
-      const link = createLink(watch);
+      const link = openLink();
       links.push(link);
       return link.offer();
     },
     async acceptOffer(sdp) {
-      const link = createLink(watch);
+      const link = openLink();
       links.push(link);
       return link.answer(sdp);
     },
@@ -88,9 +92,18 @@ export function startBrowserGrid(nodeId) {
     joinMeet(url, room) {
       if (!webrtcAvailable()) throw new Error('webrtc-missing');
       const wsUrl = `${String(url).replace(/^http/, 'ws').replace(/\/$/, '')}/meet?room=${encodeURIComponent(room || 'himmel')}`;
-      const ws = new WebSocket(wsUrl);
-      const link = createLink(watch);
+      let ws;
+      try { ws = new WebSocket(wsUrl); } catch { return this.pollMeet(url, room); }
+      const link = openLink();
       links.push(link);
+      let opened = false;
+      const giveUp = setTimeout(() => {
+        if (!opened) {
+          try { ws.close(); } catch { /* already closed */ }
+          this.pollMeet(url, room);
+        }
+      }, 1500);
+      ws.onopen = () => { opened = true; clearTimeout(giveUp); };
       ws.onmessage = async (event) => {
         let msg = {};
         try { msg = JSON.parse(event.data); } catch { return; }
@@ -107,6 +120,41 @@ export function startBrowserGrid(nodeId) {
         }
       };
       return ws;
+    },
+    pollMeet(url, room) {
+      const link = openLink();
+      links.push(link);
+      const root = String(url).replace(/\/$/, '');
+      const roomName = room || 'himmel';
+      let after = 0;
+      let offered = false;
+      const send = (msg) => fetch(`${root}/poll?room=${encodeURIComponent(roomName)}&id=${encodeURIComponent(nodeId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...msg, id: nodeId }),
+      }).catch(() => {});
+      const timer = setInterval(async () => {
+        try {
+          const response = await fetch(`${root}/poll?room=${encodeURIComponent(roomName)}&id=${encodeURIComponent(nodeId)}&after=${after}`);
+          const body = await response.json();
+          for (const msg of body.msgs || []) {
+            after = Math.max(after, msg.at || 0);
+            if (msg.t === 'hello' && !offered) {
+              offered = true;
+              const sdp = await link.offer();
+              send({ t: 'signal', kind: 'offer', sdp });
+            } else if (msg.t === 'signal' && msg.kind === 'offer') {
+              const sdp = await link.answer(msg.sdp);
+              send({ t: 'signal', kind: 'answer', sdp });
+            } else if (msg.t === 'signal' && msg.kind === 'answer') {
+              await link.accept(msg.sdp);
+              clearInterval(timer);
+            }
+          }
+        } catch { /* the meeting point can be down */ }
+      }, 1000);
+      send({ t: 'hello' });
+      return { close() { clearInterval(timer); } };
     },
     joinRoom(url, room, onStatus) {
       this.roomLink?.close();

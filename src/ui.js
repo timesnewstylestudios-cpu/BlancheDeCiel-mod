@@ -326,6 +326,9 @@ export function mount(root, ctx) {
       <section data-tool-panel="settings">
         <label>${esc(t('serverUrl'))}<input id="server-url" type="text" spellcheck="false" placeholder="https://…"></label>
         <label>${esc(t('coordinatorUrl'))}<input id="coordinator-url" type="text" spellcheck="false" placeholder="https://…"></label>
+        <label>${esc(t('turnUrl'))}<input id="turn-url" type="text" spellcheck="false" placeholder="turn:…"></label>
+        <label>${esc(t('turnUser'))}<input id="turn-user" type="text" spellcheck="false"></label>
+        <label>${esc(t('turnCred'))}<input id="turn-cred" type="password" autocomplete="off" spellcheck="false"></label>
         <p class="hint">${esc(t('serverHint'))}</p>
         <label>${esc(t('theme'))}<select id="theme">${Object.entries(THEMES).map(([id, item]) => `<option value="${id}">${esc(settings.lang === 'en' ? item.en : item.de)}</option>`).join('')}</select></label>
         <label class="row"><input id="ai-blocks" type="checkbox"> ${esc(t('aiBlocks'))}</label>
@@ -343,6 +346,12 @@ export function mount(root, ctx) {
     if (server) server.value = settings.serverUrl || '';
     const coordinator = root.querySelector('#coordinator-url');
     if (coordinator) coordinator.value = settings.coordinatorUrl || '';
+    const turnUrl = root.querySelector('#turn-url');
+    if (turnUrl) turnUrl.value = settings.turnUrl || '';
+    const turnUser = root.querySelector('#turn-user');
+    if (turnUser) turnUser.value = settings.turnUser || '';
+    const turnCred = root.querySelector('#turn-cred');
+    if (turnCred) turnCred.value = settings.turnCred || '';
     const theme = root.querySelector('#theme');
     if (theme) theme.value = settings.theme || 'light';
     const tracker = root.querySelector('#tracker');
@@ -703,6 +712,7 @@ export function mount(root, ctx) {
   });
 
   let drag = null;
+  let learnedAt = 0;
   root.addEventListener('pointerdown', (event) => {
     const move = event.target.closest('[data-move-script]');
     const paletteBlock = event.target.closest('#palette [data-opcode]');
@@ -739,7 +749,16 @@ export function mount(root, ctx) {
       const spec = specByOpcode(drag.opcode);
       insertMade(createBlock(spec.opcode), spec);
     } else if (drag.moved && drag.scriptId) session.touch();
-    if (drag.moved) suppressClick = true;
+    if (drag.moved) {
+      suppressClick = true;
+      const now = Date.now();
+      if (now - learnedAt > 500) {
+        learnedAt = now;
+        const current = sprite();
+        ctx.local.learnBlocks((current?.scripts || []).flatMap((script) => script.blocks || []));
+        ctx.persistLocal?.();
+      }
+    }
     drag = null;
   });
 
@@ -908,6 +927,9 @@ export function mount(root, ctx) {
     const persistSettings = () => {
       settings.serverUrl = root.querySelector('#server-url')?.value.trim() || '';
       settings.coordinatorUrl = root.querySelector('#coordinator-url')?.value.trim() || '';
+      settings.turnUrl = root.querySelector('#turn-url')?.value.trim() || '';
+      settings.turnUser = root.querySelector('#turn-user')?.value.trim() || '';
+      settings.turnCred = root.querySelector('#turn-cred')?.value || '';
       settings.theme = root.querySelector('#theme')?.value || 'light';
       document.documentElement.dataset.theme = settings.theme;
       saveSettings(settings);
@@ -915,6 +937,9 @@ export function mount(root, ctx) {
     };
     root.querySelector('#server-url').onchange = persistSettings;
     root.querySelector('#coordinator-url').onchange = persistSettings;
+    root.querySelector('#turn-url').onchange = persistSettings;
+    root.querySelector('#turn-user').onchange = persistSettings;
+    root.querySelector('#turn-cred').onchange = persistSettings;
     root.querySelector('#theme').onchange = persistSettings;
     root.querySelector('#ai-blocks').onchange = (event) => {
       session.update((project) => { project.aiBlocksEnabled = event.target.checked; });

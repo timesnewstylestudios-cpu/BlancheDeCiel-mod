@@ -30,7 +30,15 @@ Die ausgegebene Adresse kommt in die Einstellungen als Server-URL, oder in `publ
 
 Leeres `coordinatorUrl` bedeutet: die App nimmt `serverUrl`. Keine Schlüssel in diese Datei. Sie liegt im statischen Build.
 
-Wenn der kostenlose Plan Durable Objects ablehnt, bricht der Befehl ab. Dann bleiben Angebot/Antwort und ein optionaler Tracker der Weg. Ein Ersatz ohne Durable Objects steht unter den Vorschlägen für später.
+Wenn der kostenlose Plan Durable Objects ablehnt, bricht dieser Befehl ab. Die Geräte nutzen dann `POST` und `GET /poll` auf demselben Worker. Ohne KV-Binding liegt das Postfach nur im Speicher eines Isolats. Mit einem Binding `BOARD` auf ein KV-Namespace gilt es über Isolate hinweg. Lege das Namespace im Dashboard an und trage es in `wrangler.meet.toml` ein:
+
+```toml
+[[kv_namespaces]]
+binding = "BOARD"
+id = "die-id-aus-dem-dashboard"
+```
+
+`QUOTA` in `[vars]` ist die Zahl der Schreibaufrufe pro Raum und Stunde. Standard ist 60.
 
 ## 3. Was der Treffpunkt tut
 
@@ -44,4 +52,11 @@ Im Dashboard die Worker-Route auf eine Subdomain legen, die bei Cloudflare liegt
 
 ## 5. TURN
 
-Der kostenlose Plan hat keinen TURN-Dienst. Hinter einem strengen NAT kommt die direkte Verbindung nicht zustande. Ein eigener TURN-Server und wo die Zugangsdaten hingehören, steht bei den Vorschlägen für später. Zugangsdaten nicht ins Repository legen.
+Der kostenlose Plan hat keinen TURN-Dienst. Hinter einem strengen NAT kommt die direkte Verbindung nicht zustande.
+
+Zwei Wege, beide außerhalb dieses Repos:
+
+- coturn auf einem eigenen Rechner. Die URL sieht aus wie `turn:dein-host:3478`. Nutzer und Geheimnis setzt du in der coturn-Konfiguration.
+- Cloudflare Realtime, im Dashboard teils noch Calls genannt. Dort ein TURN-Token erzeugen. URL, Nutzer und Geheimnis stehen danach im Dashboard.
+
+Diese drei Werte kommen in die Einstellungen der App, nicht in Git und nicht in `public/config.json`. Die Seite kann sie lesen, weil WebRTC sie im Browser braucht.

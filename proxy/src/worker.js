@@ -3,6 +3,9 @@
  */
 
 import { createRoom } from './room.js';
+import { charge, createBoard, pushMail, readMail } from './board.js';
+
+const memory = createBoard(null);
 
 function cors(response, origin) {
   const headers = new Headers(response.headers);
@@ -25,8 +28,27 @@ export default {
     const origin = env.ALLOWED_ORIGIN || '*';
     if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), origin);
     const url = new URL(request.url);
+    const board = env.BOARD ? createBoard(env.BOARD) : memory;
+    if ((url.pathname === '/queue' || url.pathname === '/gossip') && request.method === 'POST') {
+      const gate = await charge(board, url.searchParams.get('room') || 'himmel', Date.now(), Number(env.QUOTA || 60));
+      if (!gate.ok) return json({ error: 'rate', count: gate.count }, 429, origin);
+    }
+    if (url.pathname === '/poll') {
+      const room = url.searchParams.get('room') || 'himmel';
+      const id = url.searchParams.get('id') || '';
+      if (request.method === 'POST') {
+        const gate = await charge(board, id || room, Date.now(), Number(env.QUOTA || 60));
+        if (!gate.ok) return json({ error: 'rate', count: gate.count }, 429, origin);
+        const body = await request.json();
+        await pushMail(board, room, { ...body, id: body.id || id, at: Date.now() });
+        return json({ ok: true }, 200, origin);
+      }
+      const after = Number(url.searchParams.get('after') || 0);
+      const msgs = await readMail(board, room, after, id);
+      return json({ msgs }, 200, origin);
+    }
     if (url.pathname === '/meet' || url.pathname === '/queue' || url.pathname === '/gossip') {
-      if (!env.ROOMS) return json({ error: 'no-coordinator' }, 501, origin);
+      if (!env.ROOMS) return json({ error: 'no-coordinator', poll: '/poll' }, 501, origin);
       const room = url.searchParams.get('room') || 'himmel';
       const stub = env.ROOMS.get(env.ROOMS.idFromName(room));
       const upstream = await stub.fetch(request);

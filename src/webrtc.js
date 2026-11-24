@@ -18,9 +18,9 @@ export function webrtcAvailable() {
   return typeof RTCPeerConnection === 'function';
 }
 
-export function createLink(onChannel) {
+export function createLink(onChannel, iceServers = [{ urls: 'stun:stun.l.google.com:19302' }]) {
   if (!webrtcAvailable()) throw new Error('webrtc-missing');
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  const pc = new RTCPeerConnection({ iceServers });
   let channel = null;
   const attach = (next) => {
     channel = next;

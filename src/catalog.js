@@ -182,6 +182,7 @@ export const BLOCKS = [
   spec('nnopt', 'neural', 'command', 'setze Optimierer von %1 auf %2 Schritt %3', 'set optimizer of %1 to %2 step %3', [s('netz'), menu('sgd', ['sgd', 'adam']), n(0.05)]),
   spec('nntrain', 'neural', 'command', 'trainiere %1 mit %2 auf %3', 'train %1 on %2 toward %3', [s('netz'), s('0,1'), s('1')]),
   spec('nnpredict', 'neural', 'reporter', 'Vorhersage von %1 für %2', 'prediction of %1 for %2', [s('netz'), s('0,1')]),
+  spec('nnrun', 'neural', 'command', 'beschleunige %1 für %2 nach %3', 'accelerate %1 on %2 into %3', [s('netz'), s('0,1'), s('Vorhersage')]),
   spec('nnsave', 'neural', 'command', 'speichere Netz %1', 'save net %1', [s('netz')]),
   spec('nnload', 'neural', 'command', 'lade Netz %1', 'load net %1', [s('netz')]),
   spec('nnshare', 'neural', 'command', 'teile Gewichte von %1', 'share weights of %1', [s('netz')]),
