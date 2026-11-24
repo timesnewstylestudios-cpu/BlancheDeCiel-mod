@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
- * Web Bluetooth is missing in the AppGeyser WebView. These probes try, in order:
+ * Web Bluetooth is missing in many embedded WebViews. These probes try, in order:
  * a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB.
  */
 

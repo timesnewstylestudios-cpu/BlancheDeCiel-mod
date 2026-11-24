@@ -6,7 +6,7 @@ Die lauffähige Anwendung ist dieser statische Editor. Der Webpack-Baukasten von
 PenguinMod-Gui und PenguinMod-Vm wird hier nicht mitgebaut: er ist auf Node.js 16
 und Webpack 4 ausgerichtet (siehe die Workflow-Datei von `penguinmod.github.io`)
 und lässt sich auf aktuellen Node-Versionen nicht verlässlich reproduzieren.
-Für AppGeyser und GitHub Pages zählt ein kleiner statischer Build.
+Für GitHub Pages und die Capacitor-Hülle zählt ein kleiner statischer Build.
 
 Geprüft am 2026-11-23:
 
@@ -34,4 +34,4 @@ PenguinMod-Erweiterungsform, die dieser Editor versteht (Teilmenge):
 
 Nicht nachgebaut: der JIT-Compiler der PenguinMod-Vm, die Scratch-Renderer-Pipeline,
 Rucksack, TurboWarp-Packager-Sonderfälle, die über eingebettetes ZIP/`project.json`
-hinausgehen, sowie Bluetooth-Peripherie (im Android-WebView nicht vorhanden).
+hinausgehen. Bluetooth in der Website ist optional; die Android-Hülle spricht BLE über eine native Brücke.
