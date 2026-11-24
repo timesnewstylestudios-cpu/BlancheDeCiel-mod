@@ -2,6 +2,9 @@
 
 import { cloneData, stageOf, uid } from './model.js';
 import { hueToHex, nearColor, parseHex } from './color.js';
+import { addLayer, createNet, exportNet, importNet, parseNumbers, predict, trainStep } from './nn.js';
+import { createLocalModel } from './localnet.js';
+import { createMachine } from './vunix.js';
 import { applyBdl, extractBdl } from './bdl.js';
 import { evaluateJob, jobKey } from './jobs.js';
 import { toPseudo } from './decompile.js';
@@ -83,6 +86,9 @@ export function createRuntime(project, services = {}) {
   const bluetooth = services.bluetooth || { available() { return false; }, ping() { return Promise.resolve({ ok: false, reason: 'unavailable' }); } };
   const sample = services.sample || (() => null);
   const userName = () => (services.userName ? services.userName() : 'Gast');
+  const local = services.local || createLocalModel();
+  const unix = createMachine({ practice: true });
+  const shell = services.shell || ((line) => unix.exec(line));
   const lang = () => {
     if (typeof services.lang === 'function') return services.lang() || 'de';
     return services.lang || 'de';
@@ -218,6 +224,18 @@ export function createRuntime(project, services = {}) {
         return parent ? parent.name : '';
       }
       case 'backdrop': return stage()?.costumeName || '';
+      case 'result': return sprite.variables.Ergebnis ?? '';
+      case 'mapget': {
+        const maps = sprite.maps || {};
+        const table = maps[String(v[1] ?? '')] || {};
+        return table[String(v[0] ?? '')] ?? '';
+      }
+      case 'nnpredict': {
+        const net = (project.nets || {})[String(v[0] ?? '')];
+        if (!net) return '';
+        return predict(net, parseNumbers(v[1])).join(',');
+      }
+      case 'shout': return project.shellOut || '';
       case 'peers': return grid.peerCount();
       case 'bt': return bluetooth.available() ? 1 : 0;
       case 'ext': return callExtension(sprite, String(v[0] ?? ''), String(v[1] ?? ''), v.slice(2));
@@ -382,7 +400,7 @@ sprite.x = snap(x);
         writeLog(`Unbekannter Block ${name}`);
         return;
       }
-      if (thread.frames.length > 40) {
+      if (thread.frames.length > 200) {
         writeLog('Rekursion zu tief');
         return;
       }
@@ -571,6 +589,121 @@ sprite.x = snap(x);
     clearlist(thread, block, sprite) {
       const list = listOf(sprite, String(evalExpr(block.args[0], sprite)), true);
       list.splice(0, list.length);
+    },
+    setitem(thread, block, sprite) {
+      const list = listOf(sprite, String(evalExpr(block.args[1], sprite)), true);
+      const index = Math.floor(toNumber(evalExpr(block.args[0], sprite))) - 1;
+      if (index < 0) return;
+      while (list.length <= index) list.push(0);
+      list[index] = evalExpr(block.args[2], sprite);
+    },
+    mapset(thread, block, sprite) {
+      if (!sprite.maps) sprite.maps = {};
+      const name = String(evalExpr(block.args[1], sprite));
+      if (!sprite.maps[name]) sprite.maps[name] = {};
+      sprite.maps[name][String(evalExpr(block.args[0], sprite))] = evalExpr(block.args[2], sprite);
+    },
+    return(thread, block, sprite) {
+      const value = block.args.length ? evalExpr(block.args[0], sprite) : '';
+      let fromCall = false;
+      while (thread.frames.length > 1) {
+        const frame = popFrame(thread);
+        if (frame?.restore) {
+          fromCall = true;
+          break;
+        }
+      }
+      sprite.variables.Ergebnis = value;
+      if (!fromCall) thread.done = true;
+    },
+    suggest() {
+      const text = local.suggest(project);
+      project.suggestion = text;
+      writeLog(text);
+    },
+    learnseq(thread, block, sprite) {
+      local.train(String(evalExpr(block.args[0], sprite)), String(evalExpr(block.args[1], sprite)));
+      services.persistLocal?.();
+    },
+    nnnew(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || 'netz');
+      const input = Math.max(1, Math.floor(toNumber(evalExpr(block.args[1], sprite)) || 2));
+      const hidden = Math.max(1, Math.floor(toNumber(evalExpr(block.args[2], sprite)) || 2));
+      const output = Math.max(1, Math.floor(toNumber(evalExpr(block.args[3], sprite)) || 1));
+      const net = createNet(name);
+      addLayer(net, { type: 'dense', input, units: hidden, activation: 'relu' });
+      addLayer(net, { type: 'dense', input: hidden, units: output, activation: 'linear' });
+      if (!project.nets) project.nets = {};
+      project.nets[name] = net;
+    },
+    nnlayer(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || 'netz');
+      if (!project.nets) project.nets = {};
+      if (!project.nets[name]) project.nets[name] = createNet(name);
+      const kind = String(evalExpr(block.args[1], sprite) || 'dense');
+      const units = Math.max(1, Math.floor(toNumber(evalExpr(block.args[2], sprite)) || 1));
+      addLayer(project.nets[name], { type: kind, units, input: units, activation: kind === 'dense' ? 'relu' : 'linear' });
+    },
+    nnopt(thread, block, sprite) {
+      const net = (project.nets || {})[String(evalExpr(block.args[0], sprite) || '')];
+      if (!net) return;
+      net.optimizer = String(evalExpr(block.args[1], sprite) || 'sgd');
+      net.lr = toNumber(evalExpr(block.args[2], sprite)) || net.lr;
+    },
+    nntrain(thread, block, sprite) {
+      const net = (project.nets || {})[String(evalExpr(block.args[0], sprite) || '')];
+      if (!net) return;
+      trainStep(net, parseNumbers(evalExpr(block.args[1], sprite)), parseNumbers(evalExpr(block.args[2], sprite)));
+    },
+    nnsave(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || '');
+      const net = (project.nets || {})[name];
+      if (!net) return;
+      if (!project.netPacks) project.netPacks = {};
+      project.netPacks[name] = exportNet(net);
+    },
+    nnload(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || '');
+      const pack = (project.netPacks || {})[name];
+      if (!pack) return;
+      if (!project.nets) project.nets = {};
+      project.nets[name] = importNet(pack);
+    },
+    nnshare(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || '');
+      const net = (project.nets || {})[name];
+      if (!net) return;
+      grid.share(`gewichte:${name}`, [[JSON.stringify(exportNet(net))]]);
+    },
+    nnfetch(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || '');
+      const settled = settle(thread, `nnfetch:${name}`, () => grid.fetch(`gewichte:${name}`));
+      if (settled.retry) return settled;
+      const raw = settled.ok ? settled.value?.[0]?.[0] : '';
+      if (!raw) return undefined;
+      try {
+        if (!project.nets) project.nets = {};
+        project.nets[name] = importNet(JSON.parse(raw));
+      } catch { writeLog('Gewichte unlesbar'); }
+      return undefined;
+    },
+    sh(thread, block, sprite) {
+      const line = String(evalExpr(block.args[0], sprite));
+      const pending = shell(line);
+      if (pending && typeof pending.then === 'function') {
+        const settled = settle(thread, `sh:${line}`, () => pending);
+        if (settled.retry) return settled;
+        const result = settled.ok ? settled.value : { out: '', err: 'shell', code: 1 };
+        project.shellOut = result?.out || '';
+        if (result?.err) writeLog(result.err);
+        return undefined;
+      }
+      project.shellOut = pending?.out || '';
+      if (pending?.err) writeLog(pending.err);
+      return undefined;
+    },
+    practice(thread, block, sprite) {
+      return commands.sh(thread, { args: [{ kind: 'str', value: 'practice' }] }, sprite);
     },
     pendown(thread, block, sprite) { sprite.penDown = true; },
     penup(thread, block, sprite) { sprite.penDown = false; },

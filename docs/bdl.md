@@ -115,7 +115,7 @@ Blöcke `aiprompt` geben erst Geld aus, wenn in den Einstellungen „KI-Blöcke 
 
 Erweiterungen, die du lädst, rufst du mit `ext <id> <opcode> <argumente…>` auf.
 
-`warp` `clone` `deleteclone` `waituntil` `stop` `bounce` `pointtowards` `glide` `switchcostume` `nextcostume` `ghost` `sphere3d` `costume` `touching` `distance` `current` `contains` `front` `back` `changelayer` `switchbackdrop` `nextbackdrop` `backdrop` `broadcastwait` `touchcolor` `colortouch` `days2000` `username` `cloneof` `changepen` `sethue` `changehue`
+`warp` `clone` `deleteclone` `waituntil` `stop` `bounce` `pointtowards` `glide` `switchcostume` `nextcostume` `ghost` `sphere3d` `costume` `touching` `distance` `current` `contains` `front` `back` `changelayer` `switchbackdrop` `nextbackdrop` `backdrop` `broadcastwait` `touchcolor` `colortouch` `days2000` `username` `cloneof` `changepen` `sethue` `changehue` `setitem` `mapset` `mapget` `return` `result` `suggest` `learnseq` `nnnew` `nnlayer` `nnopt` `nntrain` `nnpredict` `nnsave` `nnload` `nnshare` `nnfetch` `sh` `shout` `practice`
 
 ## English
 

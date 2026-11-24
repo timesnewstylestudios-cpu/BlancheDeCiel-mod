@@ -1,0 +1,15 @@
+name = "blanche-de-ciel-proxy"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+ALLOWED_ORIGIN = "*"
+RATE_LIMIT = "20"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Meeting"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Meeting"]

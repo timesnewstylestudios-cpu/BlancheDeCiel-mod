@@ -13,6 +13,8 @@ import { evaluateJob } from './jobs.js';
 import { buildAiMessages } from './prompt.js';
 import { chatComplete, chatViaProxy } from './client.js';
 import { finishLogin } from './oauth.js';
+import { browserStore, createLocalModel } from './localnet.js';
+import { createHost } from './vunix.js';
 
 const settings = loadSettings();
 document.documentElement.lang = settings.lang;
@@ -20,7 +22,10 @@ document.documentElement.dataset.theme = settings.theme || 'light';
 try {
   const configUrl = new URL('config.json', window.location.href);
   const config = await fetch(configUrl).then((response) => (response.ok ? response.json() : {}));
+  if (config.serverUrl && !settings.serverUrl) settings.serverUrl = config.serverUrl;
   if (config.proxyUrl && !settings.proxyUrl) settings.proxyUrl = config.proxyUrl;
+  if (config.coordinatorUrl && !settings.coordinatorUrl) settings.coordinatorUrl = config.coordinatorUrl;
+  if (settings.serverUrl && !settings.proxyUrl) settings.proxyUrl = settings.serverUrl;
   if (config.xClientId && !settings.xClientId) settings.xClientId = config.xClientId;
 } catch { /* optional public config */ }
 try {
@@ -40,12 +45,21 @@ gridApi.node.onJob((info, from) => {
   if (session.project.jobLog.length > 40) session.project.jobLog.shift();
 });
 
+const local = createLocalModel();
+const localStore = browserStore();
+localStore.get('model').then((pack) => { if (pack) local.importPack(pack); }).catch(() => {});
+const unix = createHost();
+const persistLocal = () => localStore.set('model', local.exportPack());
+
 const runtime = createRuntime(session.project, {
   audio,
   input,
   ask: (question) => bridge.ask(question),
   sample: (x, y) => (bridge.sample ? bridge.sample(x, y) : null),
   userName: () => settings.xUser || 'Gast',
+  local,
+  persistLocal,
+  shell: (line) => unix.exec(line),
   lang: () => settings.lang,
   extensions,
   bluetooth: { available: bluetoothAvailable, ping: bluetoothPing },
@@ -63,27 +77,34 @@ const runtime = createRuntime(session.project, {
 });
 
 async function sendChat(system, user) {
-  if (settings.proxyUrl && settings.xToken) {
+  if (settings.aiMode === 'local') return { content: local.suggest(session.project) };
+  const server = settings.serverUrl || settings.proxyUrl;
+  if (settings.aiMode !== 'key' && server && settings.xToken) {
     return chatViaProxy({
-      proxyUrl: settings.proxyUrl,
+      proxyUrl: server,
       xToken: settings.xToken,
       model: settings.model,
       system,
       user,
     });
   }
-  if (!settings.apiKey) throw new Error(settings.lang === 'en' ? 'Missing API key' : 'API-Schlüssel fehlt');
-  return chatComplete({
-    baseUrl: settings.baseUrl,
-    apiKey: settings.apiKey,
-    model: settings.model,
-    system,
-    user,
-  });
+  if (settings.apiKey && (settings.aiMode === 'key' || !server)) {
+    return chatComplete({
+      baseUrl: settings.baseUrl,
+      apiKey: settings.apiKey,
+      model: settings.model,
+      system,
+      user,
+    });
+  }
+  throw new Error(settings.lang === 'en'
+    ? 'Log in with X or use the local net'
+    : 'Melde dich mit X an oder nutze das lokale Netz');
 }
 
 mount(document.querySelector('#app'), {
-  session, runtime, settings, saveSettings, gridApi, audio, extensions, bridge, input, sendChat,
+  session, runtime, settings, saveSettings, gridApi, audio, extensions, bridge, input, sendChat, local, persistLocal,
+  shell: (line) => unix.exec(line),
 });
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

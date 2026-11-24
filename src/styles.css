@@ -110,7 +110,7 @@ footer { padding: 6px 12px; background: white; border-top: 1px solid var(--line)
   .app:not([data-pane="blocks"]) .cats,
   .app:not([data-pane="blocks"]) .palette,
   .app:not([data-pane="scripts"]) .workspace,
-  .app:not([data-pane="stage"]):not([data-pane="ai"]):not([data-pane="import"]):not([data-pane="grid"]):not([data-pane="backpack"]):not([data-pane="settings"]):not([data-pane="help"]) .side {
+  .app:not([data-pane="stage"]):not([data-pane="ai"]):not([data-pane="import"]):not([data-pane="grid"]):not([data-pane="unix"]):not([data-pane="backpack"]):not([data-pane="settings"]):not([data-pane="help"]) .side {
     display: none;
   }
   .cats, .palette { max-height: none; }

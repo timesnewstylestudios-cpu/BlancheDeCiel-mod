@@ -76,6 +76,8 @@ export const BLOCKS = [
   spec('deleteclone', 'control', 'command', 'lösche diesen Klon', 'delete this clone'),
   spec('stop', 'control', 'command', 'stoppe %1', 'stop %1', [menu('all', ['all', 'this', 'other'])]),
   spec('call', 'myblocks', 'command', 'rufe %1 auf', 'call %1', [s('tanz')]),
+  spec('return', 'myblocks', 'command', 'gib %1 zurück', 'return %1', [n(0)]),
+  spec('result', 'myblocks', 'reporter', 'Ergebnis', 'result'),
 
   spec('ask', 'sensing', 'command', 'frage %1 und warte', 'ask %1 and wait', [s('Wie heißt du?')]),
   spec('answer', 'sensing', 'reporter', 'Antwort', 'answer'),
@@ -122,6 +124,9 @@ export const BLOCKS = [
   spec('item', 'lists', 'reporter', 'Element %1 von %2', 'item %1 of %2', [n(1), s('liste')]),
   spec('len', 'lists', 'reporter', 'Länge von Liste %1', 'length of list %1', [s('liste')]),
   spec('has', 'lists', 'boolean', '%1 enthält %2?', '%1 contains %2?', [s('liste'), s('Ding')]),
+  spec('setitem', 'lists', 'command', 'ersetze Element %1 von %2 durch %3', 'replace item %1 of %2 with %3', [n(1), s('liste'), s('Ding')]),
+  spec('mapset', 'lists', 'command', 'setze Schlüssel %1 in %2 auf %3', 'set key %1 of %2 to %3', [s('name'), s('karte'), s('Wert')]),
+  spec('mapget', 'lists', 'reporter', 'Schlüssel %1 von %2', 'key %1 of %2', [s('name'), s('karte')]),
 
   spec('pendown', 'pen', 'command', 'Stift runter', 'pen down'),
   spec('penup', 'pen', 'command', 'Stift hoch', 'pen up'),
@@ -169,6 +174,22 @@ export const BLOCKS = [
   spec('btping', 'grid', 'command', 'Bluetooth-Gerät wählen', 'pick bluetooth device'),
 
   spec('aiprompt', 'ai', 'command', 'frage die KI %1', 'ask the AI %1', [s('zeichne ein Quadrat')]),
+  spec('suggest', 'ai', 'command', 'schlage den nächsten Block vor', 'suggest the next block'),
+  spec('learnseq', 'ai', 'command', 'lerne von %1 nach %2', 'learn from %1 to %2', [s('move'), s('say')]),
+
+  spec('nnnew', 'neural', 'command', 'neues Netz %1 Eingabe %2 verborgen %3 Ausgabe %4', 'new net %1 input %2 hidden %3 output %4', [s('netz'), n(2), n(4), n(1)]),
+  spec('nnlayer', 'neural', 'command', 'Schicht %1 Art %2 Größe %3', 'layer %1 type %2 size %3', [s('netz'), menu('dense', ['dense', 'conv1d', 'conv2d', 'rnn', 'lstm', 'attention']), n(4)]),
+  spec('nnopt', 'neural', 'command', 'setze Optimierer von %1 auf %2 Schritt %3', 'set optimizer of %1 to %2 step %3', [s('netz'), menu('sgd', ['sgd', 'adam']), n(0.05)]),
+  spec('nntrain', 'neural', 'command', 'trainiere %1 mit %2 auf %3', 'train %1 on %2 toward %3', [s('netz'), s('0,1'), s('1')]),
+  spec('nnpredict', 'neural', 'reporter', 'Vorhersage von %1 für %2', 'prediction of %1 for %2', [s('netz'), s('0,1')]),
+  spec('nnsave', 'neural', 'command', 'speichere Netz %1', 'save net %1', [s('netz')]),
+  spec('nnload', 'neural', 'command', 'lade Netz %1', 'load net %1', [s('netz')]),
+  spec('nnshare', 'neural', 'command', 'teile Gewichte von %1', 'share weights of %1', [s('netz')]),
+  spec('nnfetch', 'neural', 'command', 'hole Gewichte von %1', 'fetch weights of %1', [s('netz')]),
+
+  spec('sh', 'unix', 'command', 'führe aus %1', 'run %1', [s('echo hallo')]),
+  spec('shout', 'unix', 'reporter', 'Ausgabe der Shell', 'shell output'),
+  spec('practice', 'unix', 'command', 'lade die Übungsdateien', 'load the practice files'),
   spec('comment', 'analyse', 'command', 'Kommentar %1', 'comment %1', [s('')]),
   spec('log', 'analyse', 'command', 'schreibe %1 ins Protokoll', 'log %1', [s('Hallo')]),
   spec('decomp', 'analyse', 'command', 'schreibe Pseudocode nach Analyse', 'write pseudocode into Analyse'),
