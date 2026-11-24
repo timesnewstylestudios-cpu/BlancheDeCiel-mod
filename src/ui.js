@@ -125,7 +125,15 @@ export function mount(root, ctx) {
         <div class="split" data-split="cats" role="separator" aria-orientation="vertical"></div>
         <aside class="palette" id="palette"></aside>
         <div class="split" data-split="palette" role="separator" aria-orientation="vertical"></div>
-        <main class="workspace" id="workspace"></main>
+        <div class="workspace-frame" id="workspace-frame">
+          <main class="workspace" id="workspace"></main>
+          <div class="scroll-pad" id="scroll-pad">
+            <button type="button" id="scroll-left" data-dx="-160" data-dy="0">←</button>
+            <button type="button" id="scroll-up" data-dx="0" data-dy="-160">↑</button>
+            <button type="button" id="scroll-right" data-dx="160" data-dy="0">→</button>
+            <button type="button" id="scroll-down" data-dx="0" data-dy="160">↓</button>
+          </div>
+        </div>
         <div class="split" data-split="stage" role="separator" aria-orientation="vertical"></div>
         <aside class="side">
           <div class="stage-tools row">
@@ -368,7 +376,7 @@ export function mount(root, ctx) {
       const title = script.proc ? `${t('proc')} ${script.proc}` : `${Math.round(script.x)}, ${Math.round(script.y)}`;
       return `<section class="script-card" data-script-id="${esc(script.id)}" style="left:${script.x}px;top:${script.y}px"><header data-move-script="${esc(script.id)}">${esc(title)}</header>${blocks || `<div class="hint">${esc(t('emptyDrop'))}</div>`}</section>`;
     }).join('');
-    root.querySelector('#workspace').innerHTML = `<div class="scroll-pad" aria-label="${esc(t('scroll'))}"><button type="button" id="scroll-left" title="${esc(t('scrollLeft'))}">←</button><button type="button" id="scroll-up" title="${esc(t('scrollUp'))}">↑</button><button type="button" id="scroll-right" title="${esc(t('scrollRight'))}">→</button><button type="button" id="scroll-down" title="${esc(t('scrollDown'))}">↓</button></div><div class="scripts" id="scripts">${cards}<canvas id="minimap" width="120" height="80"></canvas></div><div class="row"><button type="button" id="tidy">${esc(t('tidy'))}</button><button type="button" id="delete-block">${esc(t('deleteBlock'))}</button></div>`;
+    root.querySelector('#workspace').innerHTML = `<div class="scripts" id="scripts">${cards}<canvas id="minimap" width="120" height="80"></canvas></div><div class="row"><button type="button" id="tidy">${esc(t('tidy'))}</button><button type="button" id="delete-block">${esc(t('deleteBlock'))}</button></div>`;
     const map = root.querySelector('#minimap');
     if (map) {
       const ctx2 = map.getContext('2d');
@@ -609,12 +617,6 @@ export function mount(root, ctx) {
       return;
     }
     if (!event.target.closest('.menu')) root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
-    const workspace = root.querySelector('#workspace');
-    const scrollBy = (x, y) => { if (workspace) { workspace.scrollLeft += x; workspace.scrollTop += y; } };
-    if (event.target.id === 'scroll-left') { scrollBy(-160, 0); return; }
-    if (event.target.id === 'scroll-right') { scrollBy(160, 0); return; }
-    if (event.target.id === 'scroll-up') { scrollBy(0, -160); return; }
-    if (event.target.id === 'scroll-down') { scrollBy(0, 160); return; }
     if (event.target.id === 'tidy') {
       session.update((project) => {
         const current = project.sprites.find((item) => item.id === state.spriteId);
@@ -881,6 +883,23 @@ export function mount(root, ctx) {
 
   let drag = null;
   let learnedAt = 0;
+  function startPan(event, scroller) {
+    drag = {
+      kind: 'pan',
+      pointer: event.pointerId,
+      type: event.pointerType,
+      x: event.clientX,
+      y: event.clientY,
+      left: scroller.scrollLeft,
+      top: scroller.scrollTop,
+      scroller,
+      moved: false,
+    };
+    if (event.pointerType !== 'touch' && event.cancelable) event.preventDefault();
+    if (event.pointerType !== 'touch') {
+      try { scroller.setPointerCapture(event.pointerId); } catch { /* synthetic pointers have no capture */ }
+    }
+  }
   const mark = root.querySelector('#insert-mark');
   function showGhost(text, x, y) {
     const ghost = root.querySelector('#ghost');
@@ -930,15 +949,58 @@ export function mount(root, ctx) {
     return { kind: 'cancel' };
   }
   root.addEventListener('pointerdown', (event) => {
-    if (event.button != null && event.button !== 0) return;
+    if (event.target.closest('#scroll-pad')) return;
+    if (event.button != null && event.button > 1) return;
+    const workspace = root.querySelector('#workspace');
+    const palette = root.querySelector('#palette');
     const move = event.target.closest('[data-move-script]');
     const paletteBlock = event.target.closest('#palette [data-opcode]');
     const workspaceBlock = event.target.closest('#workspace article.block');
+    if (event.target.closest('input,select,button,textarea,a')) return;
+    const inWorkspace = event.target.closest('#workspace');
+    const inPalette = event.target.closest('#palette');
+    const gutter = (el) => {
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      const vertical = event.clientX >= rect.right - 28;
+      const horizontal = event.clientY >= rect.bottom - 28;
+      if (!vertical && !horizontal) return null;
+      return vertical ? 'y' : 'x';
+    };
+    const bar = (inWorkspace && gutter(inWorkspace)) || (inPalette && gutter(inPalette));
+    if (bar && event.button === 0) {
+      const scroller = inWorkspace && gutter(inWorkspace) ? inWorkspace : inPalette;
+      drag = {
+        kind: 'bar',
+        pointer: event.pointerId,
+        type: event.pointerType,
+        x: event.clientX,
+        y: event.clientY,
+        left: scroller.scrollLeft,
+        top: scroller.scrollTop,
+        scroller,
+        axis: gutter(scroller),
+        moved: false,
+      };
+      if (event.cancelable) event.preventDefault();
+      try { scroller.setPointerCapture(event.pointerId); } catch { /* synthetic */ }
+      return;
+    }
+    if (event.button === 1 && (inWorkspace || inPalette)) {
+      startPan(event, inPalette && !inWorkspace ? palette : workspace);
+      return;
+    }
+    const emptyWorkspace = inWorkspace && !workspaceBlock && !move;
+    const emptyPalette = inPalette && !paletteBlock;
+    if (emptyWorkspace || (emptyPalette && event.pointerType === 'touch')) {
+      startPan(event, emptyPalette && !emptyWorkspace ? palette : workspace);
+      return;
+    }
     if (!move && !paletteBlock && !workspaceBlock) return;
-    if (event.target.closest('input,select,button')) return;
-    event.preventDefault();
     drag = {
+      kind: 'block',
       pointer: event.pointerId,
+      type: event.pointerType,
       x: event.clientX,
       y: event.clientY,
       scriptId: move?.dataset.moveScript || workspaceBlock?.dataset.script || null,
@@ -947,15 +1009,65 @@ export function mount(root, ctx) {
       fromPalette: !!paletteBlock && !workspaceBlock,
       moved: false,
       armed: false,
+      holdArmed: false,
+      hold: null,
     };
-    try { event.target.setPointerCapture?.(event.pointerId); } catch { /* synthetic pointers have no capture */ }
+    if (event.pointerType !== 'touch' && event.cancelable) event.preventDefault();
+    if (event.pointerType === 'touch') {
+      const pointer = event.pointerId;
+      drag.hold = setTimeout(() => {
+        if (drag && drag.pointer === pointer && drag.kind === 'block' && !drag.moved) drag.holdArmed = true;
+      }, 320);
+    }
   });
   root.addEventListener('pointermove', (event) => {
     if (!drag || event.pointerId !== drag.pointer) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
+    if (drag.kind === 'bar') {
+      drag.moved = true;
+      const el = drag.scroller;
+      if (drag.axis === 'y') {
+        const track = Math.max(1, el.clientHeight);
+        const max = Math.max(0, el.scrollHeight - track);
+        el.scrollTop = drag.top + (event.clientY - drag.y) * Math.max(1, max / track);
+      } else {
+        const track = Math.max(1, el.clientWidth);
+        const max = Math.max(0, el.scrollWidth - track);
+        el.scrollLeft = drag.left + (event.clientX - drag.x) * Math.max(1, max / track);
+      }
+      return;
+    }
+    if (drag.kind === 'pan') {
+      if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+      drag.moved = true;
+      drag.scroller.scrollLeft = drag.left + (drag.x - event.clientX);
+      drag.scroller.scrollTop = drag.top + (drag.y - event.clientY);
+      return;
+    }
+    if (!drag.armed) {
+      if (drag.type !== 'touch') {
+        if (Math.hypot(dx, dy) < 4) return;
+        drag.armed = true;
+      } else if (drag.fromPalette && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) {
+        drag.armed = true;
+      } else if (drag.holdArmed) {
+        drag.armed = true;
+      } else if (Math.hypot(dx, dy) > 10) {
+        const scroller = drag.fromPalette ? root.querySelector('#palette') : root.querySelector('#workspace');
+        drag.kind = 'pan';
+        drag.scroller = scroller;
+        drag.left = scroller.scrollLeft;
+        drag.top = scroller.scrollTop;
+        drag.moved = true;
+        scroller.scrollLeft = drag.left - dx;
+        scroller.scrollTop = drag.top - dy;
+        return;
+      } else return;
+    }
     if (!drag.moved && Math.hypot(dx, dy) < 4) return;
     drag.moved = true;
+    document.documentElement.dataset.dragging = '1';
     if (!drag.undo && drag.scriptId && !drag.route && !drag.fromPalette) {
       session.pushUndo(JSON.stringify(session.project));
       drag.undo = true;
@@ -981,7 +1093,15 @@ export function mount(root, ctx) {
   });
   root.addEventListener('pointerup', (event) => {
     if (!drag || event.pointerId !== drag.pointer) return;
+    clearTimeout(drag.hold);
+    document.documentElement.dataset.dragging = '';
     const info = drag;
+    drag = null;
+    if (info.kind === 'pan' || info.kind === 'bar') {
+      hideGhost();
+      if (info.moved) suppressClick = true;
+      return;
+    }
     hideGhost();
     if (info.moved && info.scriptId && !info.route && !info.fromPalette) {
       suppressClick = true;
@@ -1020,6 +1140,12 @@ export function mount(root, ctx) {
         ctx.persistLocal?.();
       }
     } else if (info.moved && info.scriptId && !info.route) session.touch();
+    });
+  root.addEventListener('pointercancel', (event) => {
+    if (!drag || event.pointerId !== drag.pointer) return;
+    clearTimeout(drag.hold);
+    document.documentElement.dataset.dragging = '';
+    hideGhost();
     drag = null;
   });
 
@@ -1440,14 +1566,62 @@ export function mount(root, ctx) {
       deleteSelection();
     }
   });
-  root.querySelector('#workspace').addEventListener('wheel', (event) => {
-    if (!event.ctrlKey && !event.metaKey) return;
+  const wheelOf = (el, event) => {
+    if (event.ctrlKey || event.metaKey) return false;
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? el.clientHeight : 1;
     event.preventDefault();
-    setZoom((settings.codeZoom || 1) * (event.deltaY < 0 ? 1.05 : 0.95));
+    if (event.shiftKey) el.scrollLeft += (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY) * unit;
+    else {
+      el.scrollLeft += event.deltaX * unit;
+      el.scrollTop += event.deltaY * unit;
+    }
+    return true;
+  };
+  root.querySelector('#workspace').addEventListener('wheel', (event) => {
+    const workspace = root.querySelector('#workspace');
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      setZoom((settings.codeZoom || 1) * (event.deltaY < 0 ? 1.05 : 0.95));
+      return;
+    }
+    wheelOf(workspace, event);
   }, { passive: false });
+  root.querySelector('#palette').addEventListener('wheel', (event) => {
+    wheelOf(root.querySelector('#palette'), event);
+  }, { passive: false });
+  root.addEventListener('touchmove', (event) => {
+    if (!drag || drag.type !== 'touch') return;
+    const panning = drag.kind === 'pan';
+    const dragging = drag.kind === 'block' && drag.armed;
+    if ((panning || dragging) && event.cancelable) event.preventDefault();
+  }, { passive: false });
+  root.querySelectorAll('#scroll-pad button').forEach((button) => {
+    const dx = Number(button.dataset.dx);
+    const dy = Number(button.dataset.dy);
+    let timer = 0;
+    const step = () => {
+      const workspace = root.querySelector('#workspace');
+      if (!workspace) return;
+      workspace.scrollLeft += dx;
+      workspace.scrollTop += dy;
+    };
+    const stop = () => { window.clearTimeout(timer); timer = 0; };
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      step();
+      let wait = 280;
+      const tick = () => { step(); wait = 70; timer = window.setTimeout(tick, wait); };
+      timer = window.setTimeout(tick, wait);
+    });
+    button.addEventListener('pointerup', stop);
+    button.addEventListener('pointercancel', stop);
+    button.addEventListener('pointerleave', stop);
+  });
   const pointers = new Map();
   root.querySelector('#workspace').addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'touch') pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size >= 2 && drag?.kind === 'pan') drag = null;
   });
   root.querySelector('#workspace').addEventListener('pointermove', (event) => {
     if (!pointers.has(event.pointerId) || pointers.size < 2) return;
