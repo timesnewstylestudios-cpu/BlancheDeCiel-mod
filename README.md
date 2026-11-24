@@ -1,6 +1,6 @@
 # BlancheDeCiel-mod
 
-Blockeditor für eigene Programme. Die Oberfläche spricht Deutsch und Englisch, läuft als statische Website ohne Server und lässt sich auf GitHub Pages legen oder mit AppGeyser in eine Android-App packen.
+Blockeditor für eigene Programme. Die Oberfläche spricht Deutsch und Englisch und läuft als statische Website ohne Server, auch als PWA. Dieselbe Ausgabe lässt sich auf GitHub Pages legen oder mit Capacitor als Android-App bauen.
 
 BlancheDeCiel ist an Scratch und [PenguinMod](https://github.com/PenguinMod) angelehnt: gleiche Grundfarben, gleiche Blocktypen (Hut, Befehl, C-Block, Reporter, Boolean) und eine Teilmenge der Projektdateien `.sb3` und `.pmp`. Der Webpack-Baukasten von PenguinMod-Gui und PenguinMod-Vm bleibt draußen. Er braucht Node.js 16 und Webpack 4 und baut auf aktuellen Node-Versionen nicht verlässlich. Diese Fassung ist der lauffähige Editor. Herkunft und Lizenzen stehen in `NOTICE` und `vendor/UPSTREAM.md`.
 
@@ -59,41 +59,26 @@ Das Ergebnis liegt in `dist/`. Alle URLs sind relativ, damit dieselbe Ausgabe au
 
 ## GitHub Pages
 
-Der Workflow `.github/workflows/pages.yml` testet, baut und veröffentlicht den `main`-Branch. Einmalig im Repository unter Settings → Pages die Quelle „GitHub Actions“ wählen. Die Seite liegt danach unter
+Der Workflow `.github/workflows/pages.yml` testet, baut und veröffentlicht den `main`-Branch. Die Veröffentlichung schlägt fehl, bis im Repository unter Settings → Pages die Quelle auf „GitHub Actions“ steht. Danach liegt die Seite unter
 
 `https://timesnewstylestudios-cpu.github.io/BlancheDeCiel-mod/`
 
 Pull Requests bauen und testen nur, sie veröffentlichen nicht.
 
-## AppGeyser
+## Android bauen (Build for Android)
 
-Die App ist eine Website. AppGeyser packt sie in ein Android-WebView. Ein eigener Server ist zur Laufzeit nicht nötig.
+Die Android-App ist die Capacitor-Hülle in `android-wrapper/`. Sie packt `dist/` und spricht Bluetooth über eine native Brücke. Die Website selbst bleibt ohne diese Hülle lauffähig.
 
-1. Diesen Workflow auf `main` laufen lassen und die Pages-URL abwarten.
-2. In AppGeyser eine App anlegen und als Inhalt die Website-URL eintragen, zum Beispiel `https://timesnewstylestudios-cpu.github.io/BlancheDeCiel-mod/`.
-3. JavaScript erlauben. Netzwerk braucht die KI und WebRTC zwischen Geräten. Das Mikrofon nur, wenn du aufnehmen willst.
-4. Alternativ das Build-Artefakt `dist` als ZIP der statischen Dateien hochladen, falls dein AppGeyser-Tarif HTML-Dateien annimmt. Die relativen Pfade bleiben gültig.
+Zwei Wege, Schritt für Schritt:
 
-Grenzen des WebView, die du einplanen solltest:
+- [Android Studio auf dem Rechner](docs/android-studio.md): Node-LTS, JDK 17, Android SDK, Debug-APK, signierte Release-APK und AAB, Installation, Bluetooth-Rechte.
+- [Termux auf dem Telefon](docs/android-termux.md): Pakete, SDK, arm64-`aapt2`, `./gradlew assembleDebug`, bekannte Abbrüche. Das Skript `scripts/build-android-termux.sh` führt den Bau aus, nachdem SDK und `aapt2` stehen.
 
-- Web Bluetooth fehlt in AppGeyser. Der Knopf probiert der Reihe nach eine native Brücke, Capacitor-BLE, Web Bluetooth, Web Serial und Web USB. Was fehlt, wird genannt, die App läuft weiter. „In Chrome öffnen“ startet dieselbe URL in Chrome, wo Web Bluetooth existiert.
-- Ein Service Worker speichert die Seite nach dem ersten Besuch im Browser. Manche WebViews ignorieren ihn. Dann ist die App nur online da.
-- WebRTC kann am WebView scheitern. Dieselbe Logik läuft zwischen zwei Tabs auch ohne WebRTC. Der optionale Tracker braucht Netz.
-- Der API-Schlüssel liegt im Speicher des WebView. Wer die App auf dem Gerät untersucht, kann ihn lesen. Trag keinen Schlüssel ein, den andere ausgeben dürfen.
-
-## Bluetooth: welcher Weg wo
-
-| Weg | AppGeyser-WebView | Chrome (Android/Desktop) | Eigene Android-Hülle |
-| --- | --- | --- | --- |
-| Web Bluetooth | nein | ja, nach Nutzerauswahl | nur wenn das WebView es lässt |
-| Web Serial / Web USB | nein | Desktop-Chrome, teils Android | nein |
-| `window.BlancheBridge` oder `window.Android` | nein, solange die Hülle nichts einspeist | nein | ja, wenn die Hülle die Brücke setzt |
-| Capacitor + BLE | nein | nein | ja, siehe `android-wrapper/` |
-| Intent „In Chrome öffnen“ | öffnet Chrome | bleibt in Chrome | öffnet Chrome |
-
-Die statische Website bleibt die App für AppGeyser. Bluetooth-fähig wird sie mit der optionalen Hülle:
+Kurzfassung für einen Rechner, der die Voraussetzungen aus der Studio-Anleitung schon erfüllt:
 
 ```bash
+npm ci
+npm run build
 cd android-wrapper
 npm install
 npm run prepare
@@ -102,7 +87,17 @@ npx cap sync
 npx cap open android
 ```
 
-Dafür brauchst du Android Studio und ein Gerät. `npm run prepare` kopiert `../dist` nach `www` und hängt die Brücke an, die `@capacitor-community/bluetooth-le` als `window.BlancheBridge` anbietet. Die Website erkennt die Brücke von selbst. Ohne diese Hülle bleibt der Bluetooth-Knopf bei „nicht verfügbar“ und der Rest des Editors arbeitet normal.
+`npx cap add android` nur beim ersten Mal.
+
+## Bluetooth: welcher Weg wo
+
+| Weg | Eingebettetes WebView | Chrome (Android/Desktop) | Android-App aus `android-wrapper/` |
+| --- | --- | --- | --- |
+| Web Bluetooth | oft nein | ja, nach Nutzerauswahl | nur wenn das WebView es lässt |
+| Web Serial / Web USB | nein | Desktop-Chrome, teils Android-Chrome | nein |
+| `window.BlancheBridge` oder `window.Android` | nur wenn die Hülle die Brücke setzt | nein | ja |
+| Capacitor + BLE | nein | nein | ja |
+| „In Chrome öffnen“ | öffnet Chrome | bleibt in Chrome | öffnet Chrome |
 
 ## Bekannte Grenzen
 
@@ -114,8 +109,8 @@ BlancheDeCiel-mod is a static, offline-friendly block editor with German and Eng
 
 The license is GPL-3.0-or-later.
 
-Run `npm ci`, `npm test`, `npm run dev`. `npm run build` writes `dist/`. GitHub Actions deploys `main` to GitHub Pages after you set Pages to GitHub Actions. Point AppGeyser at that URL, or upload the `dist` files if your plan accepts a static bundle. Web Bluetooth is optional and absent in the AppGeyser WebView.
+Run `npm ci`, `npm test`, `npm run dev`. `npm run build` writes `dist/`. GitHub Actions deploys `main` to GitHub Pages only after the repository Pages source is set to GitHub Actions; until then that deploy job fails. Android builds are documented in `docs/android-studio.md` and `docs/android-termux.md`.
 
-The AI panel calls `https://api.x.ai/v1/chat/completions` with your own key, stored only in `localStorage`. The model sees a compact BDL summary, documented in `docs/bdl.md`. Clones, procedures with parameters and warp, a small costume and sound library, a drawing costume editor, and a localStorage backpack are in the editor. Import covers more Scratch opcodes, including procedures and clones, and more JavaScript syntax. Peers can join a room by QR code when an optional WebTorrent tracker URL is set. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB, and can hand the page to Chrome. The Android build is `android-wrapper/`; the AppGeyser path stays the static site.
+The AI panel calls `https://api.x.ai/v1/chat/completions` with your own key, stored only in `localStorage`. The model sees a compact BDL summary, documented in `docs/bdl.md`. Clones, procedures with parameters and warp, a small costume and sound library, a drawing costume editor, and a localStorage backpack are in the editor. Import covers more Scratch opcodes, including procedures and clones, and more JavaScript syntax. Peers can join a room by QR code when an optional WebTorrent tracker URL is set. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB, and can hand the page to Chrome.
 
-Still absent: the full Scratch opcode set, a guaranteed public tracker, and phone-to-phone Bluetooth inside the AppGeyser WebView.
+Still absent: the full Scratch opcode set, and a guaranteed public tracker.
