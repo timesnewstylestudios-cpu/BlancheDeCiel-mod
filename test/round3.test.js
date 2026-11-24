@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chatBody } from '../src/client.js';
+import { readFileSync } from 'node:fs';
 import { hueToHex, nearColor, parseHex } from '../src/color.js';
-import { codeChallenge } from '../src/oauth.js';
 import { takeToken } from '../proxy/src/limit.js';
 import { mergeSettings, splitSettings } from '../src/secrets.js';
 import { clampZoom, paintFor, THEMES } from '../src/themes.js';
@@ -10,26 +9,19 @@ import { emptyProject } from '../src/model.js';
 import { applyBdl } from '../src/bdl.js';
 import { createRuntime } from '../src/runtime.js';
 
-test('a remembered key is the only copy on disk, and an X token never is', () => {
-  const parts = splitSettings({ apiKey: 'secret', rememberKey: false, xToken: 'x', xUser: 'ada', lang: 'de' });
+test('old keys and login tokens are not stored', () => {
+  const parts = splitSettings({ apiKey: 'secret', xToken: 'x', serverUrl: 'https://example.test', lang: 'de' });
   assert.equal(parts.disk.apiKey, undefined);
   assert.equal(parts.disk.xToken, undefined);
-  assert.equal(parts.session.apiKey, 'secret');
-  assert.equal(parts.session.xToken, 'x');
-  const kept = splitSettings({ apiKey: 'secret', rememberKey: true, xToken: 'x' });
-  assert.equal(kept.disk.apiKey, 'secret');
-  assert.equal(kept.session.xToken, 'x');
-  const merged = mergeSettings({ apiKey: '', rememberKey: false }, { apiKey: 'legacy' }, {});
-  assert.equal(merged.rememberKey, true);
-  assert.equal(merged.apiKey, 'legacy');
-});
-
-test('PKCE matches the RFC 7636 vector and chat bodies carry no key', async () => {
-  const challenge = await codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk');
-  assert.equal(challenge, 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
-  const body = JSON.stringify(chatBody({ model: 'grok-4.7', system: 's', user: 'u' }));
-  assert.equal(body.includes('secret'), false);
-  assert.equal(body.includes('apiKey'), false);
+  assert.equal(parts.disk.serverUrl, 'https://example.test');
+  assert.deepEqual(parts.session, {});
+  const merged = mergeSettings({ serverUrl: '', lang: 'de' }, { apiKey: 'legacy', xClientId: 'abc', serverUrl: 'https://peer.test' });
+  assert.equal(merged.apiKey, undefined);
+  assert.equal(merged.xClientId, undefined);
+  assert.equal(merged.serverUrl, 'https://peer.test');
+  const worker = readFileSync(new URL('../proxy/src/worker.js', import.meta.url), 'utf8');
+  assert.equal(worker.includes('api.x.ai'), false);
+  assert.equal(worker.includes('oauth'), false);
 });
 
 test('rate limit and color helpers', () => {

@@ -36,6 +36,7 @@ header input, header select { min-height: 44px; border-radius: 10px; border: 0; 
 #project-name { width: min(220px, 40vw); }
 
 .tabs, .tool-tabs { display: flex; gap: 6px; overflow: auto; padding: 8px; background: #d5e8f5; }
+.tool-tabs:empty { display: none; padding: 0; }
 .tabs button, .tool-tabs button { flex: 0 0 auto; }
 
 .workspace-row {

@@ -1,31 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
- * The xAI key stays in sessionStorage unless the user opts in to remembering it.
- * An X login token is never written to localStorage.
+ * Settings live in localStorage. Old xAI keys and X tokens are dropped and never written back.
  */
+
+const SECRET = ['apiKey', 'rememberKey', 'xToken', 'xUser', 'xClientId', 'model', 'baseUrl', 'proxyUrl', 'aiMode'];
 
 export function splitSettings(settings) {
   const disk = { ...settings };
-  delete disk.xToken;
-  delete disk.xUser;
-  if (!settings.rememberKey) delete disk.apiKey;
-  else disk.apiKey = settings.apiKey || '';
-  return {
-    disk,
-    session: {
-      apiKey: settings.rememberKey ? '' : (settings.apiKey || ''),
-      xToken: settings.xToken || '',
-      xUser: settings.xUser || '',
-    },
-  };
+  for (const key of SECRET) delete disk[key];
+  return { disk, session: {} };
 }
 
-export function mergeSettings(defaults, disk, session) {
-  const stored = disk ? { ...disk } : {};
-  if (stored.apiKey && stored.rememberKey === undefined) stored.rememberKey = true;
-  const merged = { ...defaults, ...stored, apiKey: '', xToken: '', xUser: '' };
-  if (stored.rememberKey && stored.apiKey) merged.apiKey = stored.apiKey;
-  else if (session?.apiKey) merged.apiKey = session.apiKey;
-  if (session?.xToken) merged.xToken = session.xToken;
-  if (session?.xUser) merged.xUser = session.xUser;
-  return merged;
+export function mergeSettings(defaults, disk) {
+  const stored = { ...(disk || {}) };
+  for (const key of SECRET) delete stored[key];
+  return { ...defaults, ...stored };
 }
