@@ -9,7 +9,7 @@ Lizenz: GNU GPL 3.0 oder jede spätere Version. Siehe `LICENSE`.
 ## Was du damit machen kannst
 
 - Blöcke antippen oder aus der Palette ziehen, Skripte starten, Figuren auf der Bühne schieben.
-- **KI:** Zuerst „Mit X anmelden“ über einen eigenen Server ([docs/x-login.md](docs/x-login.md), [docs/CloudflareTutorial.md](docs/CloudflareTutorial.md)) oder das lokale Netz ohne Schlüssel. Das lokale Netz schlägt BDL vor. „Übernehmen“ setzt es ein und lernt daraus. Ein eigener xAI-Schlüssel liegt unter Erweitert und gilt nur für den Tab, bis du „merken“ ankreuzt. Die Cloud-Anfrage schickt eine kurze BDL-Zusammenfassung, nicht das ganze Projekt-JSON.
+- **KI:** Das lokale Netz schlägt BDL vor. „Übernehmen“ setzt den Vorschlag ein und lernt daraus. Es gibt keinen Schlüssel und keine Anmeldung. Ein optionaler Server ([docs/CloudflareTutorial.md](docs/CloudflareTutorial.md)) ist nur der Treffpunkt zwischen Geräten.
 - **Blöcke:** Klone (`clone`, `when clone`, `deleteclone`), eigene Blöcke mit Parametern und `warp` (ohne Bildschirmaktualisierung), Kostüme aus einer kleinen Bibliothek oder der Zeichenfläche, Töne als WAV, Rucksack in `localStorage`.
 - **Import:** `.sb3`, `.pmp`, ZIP, eingebettetes Projekt in HTML, `.bdc.json` und JavaScript. Neben den Grundblöcken kommen Klone, Warten-bis, Stopp, Gleiten, Rand, Kostümwechsel, Ghost, eigene Blöcke mit Parametern und `warp` an. JavaScript versteht zusätzlich Parameter, `else if`, Arrays, einfache Objekte, `for…of` und Indexzugriff. Es wird nicht ausgeführt. Nur für eigenen Code oder Code, dessen Lizenz das erlaubt.
 - **Netz:** Tabellen und Aufträge zwischen Gegenstellen, Kademlia-artig über die bestehenden Verbindungen. Tabs desselben Browsers finden sich von selbst. Andere Geräte: Angebot und Antwort wie bisher, oder ein Raumname als QR-Code. Optional eine Signal-URL (WebTorrent-Tracker, zum Beispiel `wss://tracker.openwebtorrent.com`). Leer lassen heißt: kein Server.
@@ -101,7 +101,7 @@ npx cap open android
 
 ## Bekannte Grenzen
 
-Farbberührung tastet Bühnenpixel um die Figur ab, nicht jede Kostümkante. Senden-und-warten wartet, bis die gestarteten Empfängerskripte stehen. Weiterhin Kommentar-Blöcke für unbekannte Opcodes. HTML-Import sucht ein ZIP (`UEsDB…`) oder `targets`. Der Tracker ist aus, bis eine URL eingetragen ist. Die X-Anmeldung tut nichts, bis Proxy und Client-ID stehen. Aufnahme, Mikrofon und WebRTC hängen am Gerät.
+Farbberührung tastet Bühnenpixel um die Figur ab, nicht jede Kostümkante. Senden-und-warten wartet, bis die gestarteten Empfängerskripte stehen. Weiterhin Kommentar-Blöcke für unbekannte Opcodes. HTML-Import sucht ein ZIP (`UEsDB…`) oder `targets`. Der Tracker ist aus, bis eine URL eingetragen ist. Der Treffpunkt ist aus, bis eine Server-URL eingetragen ist. Aufnahme, Mikrofon und WebRTC hängen am Gerät.
 
 ## English
 
@@ -111,6 +111,6 @@ The license is GPL-3.0-or-later.
 
 Run `npm ci`, `npm test`, `npm run dev`. `npm run build` writes `dist/`. GitHub Actions deploys `main` to GitHub Pages only after the repository Pages source is set to GitHub Actions; until then that deploy job fails. Android builds are documented in `docs/android-studio.md` and `docs/android-termux.md`.
 
-The AI panel prefers Log in with X through a server you deploy (`docs/x-login.md`, `docs/CloudflareTutorial.md`) or a local net that needs no key. Your own xAI key stays under Advanced, for the tab unless you tick remember. An X token is not an xAI key. The cloud model sees a compact BDL summary (`docs/bdl.md`). Short examples, the sandbox, weight packages and later ideas are in `docs/`. Peers can meet through the optional coordinator or a tracker. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB.
+The only model is the local net. It needs no key and no login. An optional server (`docs/CloudflareTutorial.md`) is a meeting point for peers, not a model API. Short examples, the sandbox, weight packages and later ideas are in `docs/`. Peers can also use offer/answer or a tracker. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB.
 
 Still absent: a pixel-perfect costume collision, and a guaranteed public tracker. Unknown imported opcodes become comments.

@@ -5,7 +5,7 @@ BlancheDeCiel ist ein statischer Blockeditor. Dieselbe Beschreibung steht in der
 - Blöcke antippen oder ziehen. Kategorien und Farben folgen der PenguinMod-Palette.
 - Klone, eigene Blöcke mit Parametern und `warp`, Kostüme, Töne, Rucksack.
 - Import von `.sb3`, `.pmp`, HTML mit Projekt und einer JavaScript-Teilmenge. JavaScript wird nicht ausgeführt.
-- KI: „Mit X anmelden“ über den eigenen Server, oder das lokale Netz ohne Schlüssel. Ein eigener xAI-Schlüssel liegt unter Erweitert. Siehe `docs/x-login.md` und `docs/CloudflareTutorial.md`.
+- KI: nur das lokale Netz im Browser, ohne Schlüssel. „Übernehmen“ lernt aus dem Vorschlag. Der optionale Server ist der Treffpunkt, siehe `docs/CloudflareTutorial.md`.
 - Netz mit Tabs, Angebot/Antwort, QR-Raum und optionalem Tracker.
 - Audio, Grafik, Shader, 3D-Quader und Kugeln.
 - Bühne klein, normal oder Vollbild. Codefläche mit +/−, Strg+Mausrad und Zwei-Finger-Zoom.

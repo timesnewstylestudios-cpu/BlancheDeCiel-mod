@@ -11,18 +11,9 @@ const SESSION_KEY = 'bdc.session.v1';
 
 export const defaultSettings = {
   lang: 'de',
-  apiKey: '',
-  rememberKey: false,
-  model: 'grok-4.7',
-  baseUrl: 'https://api.x.ai/v1',
   trackerUrl: '',
-  proxyUrl: '',
   serverUrl: '',
   coordinatorUrl: '',
-  aiMode: 'x',
-  xClientId: '',
-  xToken: '',
-  xUser: '',
   theme: 'light',
   codeZoom: 1,
   stageMode: 'normal',
@@ -44,8 +35,6 @@ export function saveSettings(settings) {
     ...defaultSettings,
     ...settings,
     lang: settings.lang === 'en' ? 'en' : 'de',
-    model: settings.model || defaultSettings.model,
-    baseUrl: settings.baseUrl || defaultSettings.baseUrl,
     theme: settings.theme || 'light',
   };
   const parts = splitSettings(next);

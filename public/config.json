@@ -1,6 +1,4 @@
 {
   "serverUrl": "",
-  "proxyUrl": "",
-  "coordinatorUrl": "",
-  "xClientId": ""
+  "coordinatorUrl": ""
 }

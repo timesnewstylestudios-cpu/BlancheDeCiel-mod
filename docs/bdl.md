@@ -105,7 +105,7 @@ Listen folgen der Scratch-Reihenfolge: `push` Gegenstand dann Liste, `remove` In
 
 ## KI-Aufruf
 
-Die Anfrage an `https://api.x.ai/v1/chat/completions` enthält die Systemanweisung, diese Grammatik in Kurzform und `projectToBdl` des Projekts, nicht das SB3-JSON. Die Antwort soll nur einen ```bdl-Block enthalten. Der eigene Schlüssel bleibt im Tab, außer du lässt ihn ausdrücklich merken. Ein X-Login schickt kein xAI-Geheimnis. Siehe `docs/x-login.md`.
+Das lokale Netz schlägt BDL aus den letzten Blöcken vor. Es sieht keine Modellschnittstelle und keinen Schlüssel. Die Grammatik bleibt dieselbe.
 
 Blöcke `aiprompt` geben erst Geld aus, wenn in den Einstellungen „KI-Blöcke im Skript“ an ist.
 
