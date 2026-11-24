@@ -21,7 +21,7 @@ Die Bühnenmitte ist der Ursprung, x zeigt nach rechts, y nach oben. Richtung 0 
 
 ## BDL
 
-Die Beschreibungssprache steht in [docs/bdl.md](docs/bdl.md). Alle Funktionen, einschließlich Zoom, Flächen und Darstellung, stehen in [docs/funktionen.md](docs/funktionen.md) und in der Hilfe der App. Kurz:
+Die nächsten Aufgaben und die Liste aller Markdown-Dateien stehen in [To-do.md](To-do.md). Die Beschreibungssprache steht in [docs/bdl.md](docs/bdl.md). Alle Funktionen, einschließlich Zoom, Flächen und Darstellung, stehen in [docs/funktionen.md](docs/funktionen.md) und in der Hilfe der App. Kurz:
 
 ```bdl
 sprite Figur
