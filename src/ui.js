@@ -17,6 +17,7 @@ import { bluetoothAvailable, bluetoothPing, chromeIntentUrl, linkPaths } from '.
 import { COSTUME_LIBRARY, SOUND_LIBRARY } from './library.js';
 import { addBackpackItem, loadBackpack, removeBackpackItem, saveBackpack } from './backpack.js';
 import { qrSvg } from './qr.js';
+import { dropScripts, placeStack, sameBranch, takeStack, tidyScripts } from './stack.js';
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -86,6 +87,7 @@ export function mount(root, ctx) {
               <button type="button" data-format="touch"></button>
               <button type="button" data-format="focus"></button>
               <button type="button" data-format="stage"></button>
+              <button type="button" id="density"></button>
               <button type="button" data-blocks="normal"></button>
               <button type="button" data-blocks="flat"></button>
               <button type="button" data-blocks="contrast"></button>
@@ -148,6 +150,7 @@ export function mount(root, ctx) {
       <footer id="status"></footer>
     </div>
     <div id="ghost"></div>
+    <div id="insert-mark" hidden></div>
     <div id="draw" hidden>
       <canvas id="draw-canvas" width="160" height="160"></canvas>
       <div class="row"><input id="draw-color" type="color" value="#4C97FF"><button type="button" id="draw-clear"></button><button type="button" id="draw-save"></button><button type="button" id="draw-close">OK</button></div>
@@ -237,6 +240,11 @@ export function mount(root, ctx) {
     if (reset) { reset.textContent = t('zoomReset'); reset.title = t('zoomReset'); }
     const fit = root.querySelector('#code-fit');
     if (fit) { fit.textContent = t('zoomFit'); fit.title = t('zoomFit'); }
+    const tidy = root.querySelector('#tidy');
+    if (tidy) tidy.textContent = t('tidy');
+    const density = root.querySelector('#density');
+    if (density) density.textContent = settings.density === 'compact' ? t('densityNormal') : t('densityCompact');
+    document.documentElement.dataset.density = settings.density || (settings.format === 'compact' ? 'compact' : 'normal');
     const showTour = root.querySelector('#show-tour');
     if (showTour) showTour.textContent = t('tour');
     root.querySelectorAll('[data-format]').forEach((button) => { button.textContent = t(`format_${button.dataset.format}`); });
@@ -341,12 +349,12 @@ export function mount(root, ctx) {
     const label = spec ? renderLabel(labelFor(spec, settings.lang), block, spec, scriptId, route) : esc(block.opcode);
     let mouth = '';
     if (block.body) {
-      mouth += `<div class="mouth">${(block.body || []).map((child, index) => renderBlock(child, scriptId, `${route}.b.${index}`)).join('')}</div>`;
+      mouth += `<div class="mouth" data-mouth="b" data-script="${esc(scriptId)}" data-route="${esc(route)}">${(block.body || []).map((child, index) => renderBlock(child, scriptId, `${route}.b.${index}`)).join('') || '<span class="drop-hint"></span>'}</div>`;
     }
     if (block.elseBody) {
-      mouth += `<div class="else-label">${esc(t('else'))}</div><div class="mouth">${block.elseBody.map((child, index) => renderBlock(child, scriptId, `${route}.e.${index}`)).join('')}</div>`;
+      mouth += `<div class="else-label">${esc(t('else'))}</div><div class="mouth" data-mouth="e" data-script="${esc(scriptId)}" data-route="${esc(route)}">${block.elseBody.map((child, index) => renderBlock(child, scriptId, `${route}.e.${index}`)).join('') || '<span class="drop-hint"></span>'}</div>`;
     }
-    return `<article class="block ${spec?.type || 'command'} ${selected ? 'selected' : ''}" data-script="${esc(scriptId)}" data-route="${esc(route)}" style="background:${color.c1}"><div class="rowline">${label}</div>${mouth}</article>`;
+    return `<article class="block ${spec?.type || 'command'} ${selected ? 'selected' : ''}" data-opcode="${esc(block.opcode)}" data-script="${esc(scriptId)}" data-route="${esc(route)}" style="background:${color.c1}"><div class="rowline">${label}</div>${mouth}</article>`;
   }
 
   function renderWorkspace() {
@@ -360,7 +368,16 @@ export function mount(root, ctx) {
       const title = script.proc ? `${t('proc')} ${script.proc}` : `${Math.round(script.x)}, ${Math.round(script.y)}`;
       return `<section class="script-card" data-script-id="${esc(script.id)}" style="left:${script.x}px;top:${script.y}px"><header data-move-script="${esc(script.id)}">${esc(title)}</header>${blocks || `<div class="hint">${esc(t('emptyDrop'))}</div>`}</section>`;
     }).join('');
-    root.querySelector('#workspace').innerHTML = `<div class="scripts" id="scripts">${cards}</div><div class="row"><button type="button" id="delete-block">${esc(t('deleteBlock'))}</button></div>`;
+    root.querySelector('#workspace').innerHTML = `<div class="scripts" id="scripts">${cards}<canvas id="minimap" width="120" height="80"></canvas></div><div class="row"><button type="button" id="tidy">${esc(t('tidy'))}</button><button type="button" id="delete-block">${esc(t('deleteBlock'))}</button></div>`;
+    const map = root.querySelector('#minimap');
+    if (map) {
+      const ctx2 = map.getContext('2d');
+      ctx2.clearRect(0, 0, 120, 80);
+      ctx2.fillStyle = '#d5e8f5';
+      current.scripts.forEach((script) => {
+        ctx2.fillRect(script.x / 20, script.y / 22, 18, 8);
+      });
+    }
   }
 
   function renderSprites() {
@@ -592,6 +609,19 @@ export function mount(root, ctx) {
       return;
     }
     if (!event.target.closest('.menu')) root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
+    if (event.target.id === 'tidy') {
+      session.update((project) => {
+        const current = project.sprites.find((item) => item.id === state.spriteId);
+        if (current) tidyScripts(current.scripts);
+      });
+      return;
+    }
+    if (event.target.id === 'density') {
+      settings.density = settings.density === 'compact' ? 'normal' : 'compact';
+      saveSettings(settings);
+      refresh();
+      return;
+    }
     const format = event.target.closest('button[data-format]');
     if (format) {
       settings.format = format.dataset.format;
@@ -845,52 +875,145 @@ export function mount(root, ctx) {
 
   let drag = null;
   let learnedAt = 0;
+  const mark = root.querySelector('#insert-mark');
+  function showGhost(text, x, y) {
+    const ghost = root.querySelector('#ghost');
+    ghost.textContent = text;
+    ghost.hidden = false;
+    ghost.style.left = `${x + 12}px`;
+    ghost.style.top = `${y + 12}px`;
+  }
+  function hideGhost() {
+    const ghost = root.querySelector('#ghost');
+    ghost.textContent = '';
+    ghost.hidden = true;
+    mark.hidden = true;
+  }
+  function edgeScroll(x, y) {
+    const workspace = root.querySelector('#workspace');
+    if (!workspace) return;
+    const box = workspace.getBoundingClientRect();
+    if (x < box.left + 28) workspace.scrollLeft -= 16;
+    if (x > box.right - 28) workspace.scrollLeft += 16;
+    if (y < box.top + 28) workspace.scrollTop -= 16;
+    if (y > box.bottom - 28) workspace.scrollTop += 16;
+  }
+  function dropTarget(x, y) {
+    const under = document.elementFromPoint(x, y);
+    if (!under) return { kind: 'cancel' };
+    if (under.closest('#palette')) return { kind: 'delete' };
+    const mouth = under.closest('.mouth');
+    if (mouth) return { kind: 'into', scriptId: mouth.dataset.script, route: mouth.dataset.route, where: mouth.dataset.mouth === 'e' ? 'else' : 'into' };
+    const block = under.closest('article.block');
+    if (block && block.closest('#workspace')) {
+      const rect = block.getBoundingClientRect();
+      return {
+        kind: 'snap',
+        scriptId: block.dataset.script,
+        route: block.dataset.route,
+        where: y < rect.top + rect.height * 0.35 ? 'before' : 'after',
+      };
+    }
+    const workspace = under.closest('#workspace');
+    if (workspace) {
+      const scripts = root.querySelector('#scripts');
+      const origin = scripts.getBoundingClientRect();
+      const zoom = Number(scripts.style.zoom || 1) || 1;
+      return { kind: 'new', x: (x - origin.left) / zoom, y: (y - origin.top) / zoom };
+    }
+    return { kind: 'cancel' };
+  }
   root.addEventListener('pointerdown', (event) => {
+    if (event.button != null && event.button !== 0) return;
     const move = event.target.closest('[data-move-script]');
     const paletteBlock = event.target.closest('#palette [data-opcode]');
-    if (!move && !paletteBlock) return;
+    const workspaceBlock = event.target.closest('#workspace article.block');
+    if (!move && !paletteBlock && !workspaceBlock) return;
     if (event.target.closest('input,select,button')) return;
+    event.preventDefault();
     drag = {
       pointer: event.pointerId,
       x: event.clientX,
       y: event.clientY,
-      scriptId: move?.dataset.moveScript || null,
-      opcode: paletteBlock?.dataset.opcode || null,
+      scriptId: move?.dataset.moveScript || workspaceBlock?.dataset.script || null,
+      route: workspaceBlock?.dataset.route || null,
+      opcode: paletteBlock?.dataset.opcode || workspaceBlock?.dataset.opcode || null,
+      fromPalette: !!paletteBlock && !workspaceBlock,
       moved: false,
+      armed: false,
     };
+    try { event.target.setPointerCapture?.(event.pointerId); } catch { /* synthetic pointers have no capture */ }
   });
   root.addEventListener('pointermove', (event) => {
     if (!drag || event.pointerId !== drag.pointer) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
     drag.moved = true;
-    const ghost = root.querySelector('#ghost');
-    ghost.textContent = drag.opcode || 'Skript';
-    ghost.style.left = `${event.clientX + 8}px`;
-    ghost.style.top = `${event.clientY + 8}px`;
-    if (drag.scriptId && !drag.opcode) {
+    if (!drag.undo && drag.scriptId && !drag.route && !drag.fromPalette) {
+      session.pushUndo(JSON.stringify(session.project));
+      drag.undo = true;
+    }
+    showGhost(drag.opcode || t('scripts'), event.clientX, event.clientY);
+    edgeScroll(event.clientX, event.clientY);
+    const target = dropTarget(event.clientX, event.clientY);
+    drag.target = target;
+    if (target.kind === 'snap' || target.kind === 'into') {
+      const host = root.querySelector(`article.block[data-script="${target.scriptId}"][data-route="${target.route}"]`);
+      if (host) {
+        const rect = host.getBoundingClientRect();
+        mark.hidden = false;
+        mark.style.left = `${rect.left}px`;
+        mark.style.top = `${target.where === 'before' ? rect.top : rect.bottom - 4}px`;
+        mark.style.width = `${Math.max(48, rect.width)}px`;
+      }
+    } else mark.hidden = true;
+    if (drag.scriptId && !drag.route && !drag.fromPalette) {
       const script = sprite().scripts.find((item) => item.id === drag.scriptId);
       if (script) { script.x += dx; script.y += dy; drag.x = event.clientX; drag.y = event.clientY; renderWorkspace(); }
     }
   });
   root.addEventListener('pointerup', (event) => {
     if (!drag || event.pointerId !== drag.pointer) return;
-    root.querySelector('#ghost').textContent = '';
-    if (drag.moved && drag.opcode) {
-      const spec = specByOpcode(drag.opcode);
-      insertMade(createBlock(spec.opcode), spec);
-    } else if (drag.moved && drag.scriptId) session.touch();
-    if (drag.moved) {
+    const info = drag;
+    hideGhost();
+    if (info.moved && info.scriptId && !info.route && !info.fromPalette) {
       suppressClick = true;
+      session.touch();
+    } else if (info.moved) {
+      suppressClick = true;
+      const target = info.target || dropTarget(event.clientX, event.clientY);
+      session.update((project) => {
+        const current = project.sprites.find((item) => item.id === state.spriteId) || project.sprites[0];
+        const blocked = info.route != null && target.scriptId === info.scriptId && sameBranch(info.route, target.route);
+        if (target.kind === 'cancel' || (blocked && target.kind !== 'new' && target.kind !== 'delete')) return;
+        let stack = [];
+        if (info.fromPalette) {
+          if (target.kind === 'delete') return;
+          const made = createBlock(info.opcode);
+          if (made) stack = [made];
+        } else if (info.route != null) {
+          const script = current.scripts.find((item) => item.id === info.scriptId);
+          if (script) stack = takeStack(script, info.route);
+          dropScripts(current.scripts);
+        }
+        if (!stack.length || target.kind === 'delete') return;
+        if (target.kind === 'snap' || target.kind === 'into') {
+          const script = current.scripts.find((item) => item.id === target.scriptId);
+          if (script) placeStack(script, target.route, stack, target.where || 'after');
+          return;
+        }
+        if (target.kind === 'new') {
+          current.scripts.push({ id: uid(), x: target.x, y: target.y, proc: null, blocks: stack });
+        }
+      });
       const now = Date.now();
       if (now - learnedAt > 500) {
         learnedAt = now;
-        const current = sprite();
-        ctx.local.learnBlocks((current?.scripts || []).flatMap((script) => script.blocks || []));
+        ctx.local.learnBlocks((sprite()?.scripts || []).flatMap((script) => script.blocks || []));
         ctx.persistLocal?.();
       }
-    }
+    } else if (info.moved && info.scriptId && !info.route) session.touch();
     drag = null;
   });
 
@@ -1178,6 +1301,9 @@ export function mount(root, ctx) {
   };
 
   ctx.bridge.sample = (x, y) => stageView.sample(x, y);
+  ctx.bridge.overlap = (a, b) => stageView.overlap(a, b);
+  ctx.bridge.touchColor = (sprite, color) => stageView.touchColor(sprite, color);
+  ctx.bridge.colorTouch = (sprite, mine, other) => stageView.colorTouch(sprite, mine, other);
   const setStage = (mode, zoom) => {
     settings.stageMode = mode;
     if (zoom) settings.stageZoom = zoom;

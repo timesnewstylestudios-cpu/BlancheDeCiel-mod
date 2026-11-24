@@ -80,6 +80,34 @@ await page.click('button[data-pane="unix"]');
 await page.click('#shell-run');
 await page.waitForFunction(() => document.querySelector('#shell-out').textContent.includes('schreibbar'));
 
+await page.click('button[data-category="motion"]');
+const say = await page.locator('#palette [data-opcode="move"]').boundingBox();
+const workspace = await page.locator('#workspace').boundingBox();
+const beforeDrag = await page.locator('.workspace article.block').count();
+await page.mouse.move(say.x + 16, say.y + 12);
+await page.mouse.down();
+await page.mouse.move(workspace.x + 180, workspace.y + 200, { steps: 12 });
+await page.screenshot({ path: `${shots}/drag-ghost.png` });
+await page.mouse.up();
+const afterDrag = await page.locator('.workspace article.block').count();
+if (afterDrag <= beforeDrag) errors.push(`drag ${beforeDrag}->${afterDrag}`);
+await page.screenshot({ path: `${shots}/drag-dropped.png` });
+const touchAdded = await page.evaluate(() => {
+  const before = document.querySelectorAll('.workspace article.block').length;
+  const el = document.querySelector('#palette [data-opcode="turn"]');
+  const from = el.getBoundingClientRect();
+  const to = document.querySelector('#workspace').getBoundingClientRect();
+  const root = document.querySelector('#app');
+  const event = (type, x, y, target) => target.dispatchEvent(new PointerEvent(type, {
+    bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 7, pointerType: 'touch', button: 0,
+  }));
+  event('pointerdown', from.x + 10, from.y + 10, el);
+  event('pointermove', to.x + 220, to.y + 240, root);
+  event('pointerup', to.x + 220, to.y + 240, root);
+  return document.querySelectorAll('.workspace article.block').length - before;
+});
+if (touchAdded < 1) errors.push(`touch drag ${touchAdded}`);
+await page.click('#tidy');
 await page.click('#stage-large');
 const stageZoom = await page.$eval('#stage-mount', (el) => el.style.zoom);
 if (Number(stageZoom) < 1.2) errors.push(`stage ${stageZoom}`);

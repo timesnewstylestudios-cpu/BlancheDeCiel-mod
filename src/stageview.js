@@ -2,6 +2,8 @@
 
 import { STAGE_H, STAGE_W, applyShader2d, drawBoxes, drawFloor, drawSpheres, replayDrawOps, scratchToCanvas, canvasToScratch } from './paint.js';
 import { createGL } from './glshader.js';
+import { alphaOverlap, boundsOverlap, colorHitsColor, maskHitsColor } from './hit.js';
+import { parseHex } from './color.js';
 
 const images = new Map();
 let drawnOps = -1;
@@ -17,7 +19,7 @@ function costume(sprite) {
   return image;
 }
 
-function drawSprite(ctx, sprite, selected) {
+function drawBody(ctx, sprite, selected) {
   const point = scratchToCanvas(sprite.x, sprite.y);
   const scale = (sprite.size || 100) / 100;
   ctx.save();
@@ -43,6 +45,12 @@ function drawSprite(ctx, sprite, selected) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function drawSprite(ctx, sprite, selected) {
+  const point = scratchToCanvas(sprite.x, sprite.y);
+  const scale = (sprite.size || 100) / 100;
+  drawBody(ctx, sprite, selected);
   ctx.fillStyle = '#16324F';
   ctx.font = '600 12px sans-serif';
   ctx.textAlign = 'center';
@@ -138,8 +146,49 @@ export function createStageView(root) {
     return canvasToScratch(px, py);
   }
 
+  function pixelsOf(sprite) {
+    const canvas = document.createElement('canvas');
+    canvas.width = STAGE_W;
+    canvas.height = STAGE_H;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    drawBody(ctx, sprite, false);
+    const image = ctx.getImageData(0, 0, STAGE_W, STAGE_H);
+    return { w: STAGE_W, h: STAGE_H, data: image.data };
+  }
+
+  function backdropPixels() {
+    const canvas = document.createElement('canvas');
+    canvas.width = STAGE_W;
+    canvas.height = STAGE_H;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#d7eef8';
+    ctx.fillRect(0, 0, STAGE_W, STAGE_H);
+    ctx.drawImage(pen, 0, 0);
+    ctx.drawImage(gfx, 0, 0);
+    const image = ctx.getImageData(0, 0, STAGE_W, STAGE_H);
+    return { w: STAGE_W, h: STAGE_H, data: image.data };
+  }
+
+  function boxOf(sprite) {
+    const scale = (sprite.size || 100) / 100;
+    const point = scratchToCanvas(sprite.x, sprite.y);
+    const w = 56 * scale;
+    const h = 64 * scale;
+    return { x: point.x - w / 2, y: point.y - h / 2, w, h };
+  }
+
   return {
     view,
+    overlap(left, right) {
+      if (!boundsOverlap(boxOf(left), boxOf(right))) return false;
+      return alphaOverlap(pixelsOf(left), pixelsOf(right), 0, 0);
+    },
+    touchColor(sprite, hex) {
+      return maskHitsColor(pixelsOf(sprite), backdropPixels(), 0, 0, parseHex(hex), 36);
+    },
+    colorTouch(sprite, mine, other) {
+      return colorHitsColor(pixelsOf(sprite), backdropPixels(), 0, 0, parseHex(mine), parseHex(other), 36);
+    },
     sample(scratchX, scratchY) {
       const point = scratchToCanvas(scratchX, scratchY);
       const pixel = view.getContext('2d').getImageData(
