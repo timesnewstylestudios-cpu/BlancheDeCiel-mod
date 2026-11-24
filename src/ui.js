@@ -43,31 +43,78 @@ export function mount(root, ctx) {
     category: 'motion',
     spriteId: session.project.sprites.find((sprite) => !sprite.isStage)?.id || session.project.sprites[0]?.id,
     selection: null,
-    pane: 'ai',
-    tool: 'ai',
+    pane: 'code',
+    tool: '',
+    search: '',
+    tour: 0,
     status: '',
     analysis: null,
     editing: null,
   };
   const wideQuery = window.matchMedia('(min-width: 1000px)');
+  const t = (key) => translate(settings.lang, key);
 
   root.innerHTML = `
-    <div class="app wide" id="shell" data-pane="ai">
-      <header>
+    <div class="app wide" id="shell" data-pane="code">
+      <header class="menubar">
         <div class="brand"><strong>BlancheDeCiel</strong><span id="tagline"></span></div>
-        <input id="project-name" aria-label="Projekt">
-        <button class="primary" id="flag" type="button"></button>
-        <button class="stop" id="stop" type="button"></button>
-        <button id="undo" type="button"></button>
-        <button id="redo" type="button"></button>
-        <button id="lang-de" type="button">DE</button>
-        <button id="lang-en" type="button">EN</button>
-        <div class="file-menu row">
-          <button id="new" type="button"></button>
-          <button id="open" type="button"></button>
-          <button id="save" type="button"></button>
-          <button id="export" type="button"></button>
-          <select id="examples"></select>
+        <nav class="menus" aria-label="Menü">
+          <div class="menu">
+            <button type="button" class="menu-btn" data-menu="file" id="menu-file"></button>
+            <div class="menu-pop" hidden>
+              <button id="new" type="button"></button>
+              <button id="open" type="button"></button>
+              <button id="save" type="button"></button>
+              <button id="export" type="button"></button>
+              <select id="examples"></select>
+            </div>
+          </div>
+          <div class="menu">
+            <button type="button" class="menu-btn" data-menu="edit" id="menu-edit"></button>
+            <div class="menu-pop" hidden>
+              <button id="undo" type="button"></button>
+              <button id="redo" type="button"></button>
+              <button id="lang-de" type="button" title="Deutsch">DE</button>
+              <button id="lang-en" type="button" title="English">EN</button>
+            </div>
+          </div>
+          <div class="menu">
+            <button type="button" class="menu-btn" data-menu="view" id="menu-view"></button>
+            <div class="menu-pop" hidden>
+              <button type="button" data-format="classic"></button>
+              <button type="button" data-format="compact"></button>
+              <button type="button" data-format="touch"></button>
+              <button type="button" data-format="focus"></button>
+              <button type="button" data-format="stage"></button>
+              <button type="button" data-blocks="normal"></button>
+              <button type="button" data-blocks="flat"></button>
+              <button type="button" data-blocks="contrast"></button>
+              <label>${esc(t('theme'))}<select id="theme">${Object.entries(THEMES).map(([id, item]) => `<option value="${id}">${esc(settings.lang === 'en' ? item.en : item.de)}</option>`).join('')}</select></label>
+            </div>
+          </div>
+          <div class="menu">
+            <button type="button" class="menu-btn" data-menu="ext" id="menu-ext"></button>
+            <div class="menu-pop" hidden>
+              <button type="button" data-pane="ai"></button>
+              <button type="button" data-pane="import"></button>
+              <button type="button" data-pane="grid"></button>
+              <button type="button" data-pane="unix"></button>
+              <button type="button" data-pane="backpack"></button>
+              <button type="button" data-pane="settings"></button>
+            </div>
+          </div>
+          <div class="menu">
+            <button type="button" class="menu-btn" data-menu="help" id="menu-help"></button>
+            <div class="menu-pop" hidden>
+              <button type="button" data-pane="help"></button>
+              <button type="button" id="show-tour"></button>
+            </div>
+          </div>
+        </nav>
+        <div class="runbar">
+          <input id="project-name" aria-label="Projekt">
+          <button class="primary" id="flag" type="button"></button>
+          <button class="stop" id="stop" type="button"></button>
         </div>
       </header>
       <nav class="tabs" id="tabs"></nav>
@@ -81,9 +128,15 @@ export function mount(root, ctx) {
         <aside class="side">
           <div class="stage-tools row">
             <button type="button" id="stage-small"></button>
+            <button type="button" id="stage-normal"></button>
+            <button type="button" id="stage-large"></button>
             <button type="button" id="stage-full"></button>
-            <button type="button" id="code-out">−</button>
-            <button type="button" id="code-in">+</button>
+            <span id="stage-zoom" class="zoom-label"></span>
+            <button type="button" id="code-out" title="Code −">−</button>
+            <button type="button" id="code-in" title="Code +">+</button>
+            <button type="button" id="code-reset"></button>
+            <button type="button" id="code-fit"></button>
+            <span id="zoom-label" class="zoom-label"></span>
           </div>
           <div class="stage-mount" id="stage-mount"></div>
           <div class="split split-y" data-split="stageh" role="separator" aria-orientation="horizontal"></div>
@@ -104,40 +157,64 @@ export function mount(root, ctx) {
       <input id="ask-input" class="grow">
       <button type="submit">OK</button>
     </form>
-    <input id="file" type="file" hidden accept=".sb3,.pmp,.zip,.json,.html,.htm,.js,.bdl,.txt">`;
+    <input id="file" type="file" hidden accept=".sb3,.pmp,.zip,.json,.html,.htm,.js,.bdl,.txt">
+    <div id="ctx" hidden role="menu"></div>
+    <div id="tour" hidden><p id="tour-text"></p><div class="row"><button type="button" id="tour-next"></button><button type="button" id="tour-skip"></button></div></div>`;
 
   const shell = root.querySelector('#shell');
   const stageView = createStageView(root.querySelector('#stage-mount'));
   const fileInput = root.querySelector('#file');
   let askResolve = null;
 
-  const t = (key) => translate(settings.lang, key);
   const sprite = () => session.project.sprites.find((item) => item.id === state.spriteId) || session.project.sprites[0];
   const setStatus = (text) => { state.status = text; root.querySelector('#status').textContent = text; };
 
   function applyLayout() {
     const layout = settings.layout || {};
     const row = root.querySelector('#workspace-row');
-    if (!row || !wideQuery.matches) {
+    document.documentElement.dataset.format = settings.format || 'classic';
+    document.documentElement.dataset.blocks = settings.blockStyle || 'normal';
+    document.documentElement.dataset.theme = settings.theme || 'light';
+    const format = settings.format || 'classic';
+    const preset = { classic: [112, 280, 380], compact: [80, 200, 260], touch: [96, 320, 300], focus: [96, 280, 0], stage: [80, 220, 560] }[format] || [112, 280, 380];
+    if (!row || !wideQuery.matches || format === 'focus') {
       if (row) row.style.gridTemplateColumns = '';
-      return;
+    } else {
+      const cats = clampSize(layout.cats || preset[0], 72, 180);
+      const palette = clampSize(layout.palette || preset[1], 180, 520);
+      const stageWidth = settings.stageMode === 'small' ? 240 : settings.stageMode === 'large' ? 560 : clampSize(layout.stage || preset[2], 220, 720);
+      row.style.gridTemplateColumns = `${cats}px 10px ${palette}px 10px minmax(180px,1fr) 10px ${stageWidth}px`;
     }
-    const cats = clampSize(layout.cats, 72, 180);
-    const palette = clampSize(layout.palette, 180, 520);
-    const stage = settings.stageMode === 'small' ? 240 : clampSize(layout.stage, 220, 680);
-    row.style.gridTemplateColumns = `${cats}px 10px ${palette}px 10px minmax(180px,1fr) 10px ${stage}px`;
     const mount = root.querySelector('#stage-mount');
-    if (mount && settings.stageMode !== 'full') mount.style.height = `${clampSize(layout.stageHeight, 140, 640)}px`;
+    const stageZoom = clampZoom(settings.stageZoom || (settings.stageMode === 'large' ? 1.35 : settings.stageMode === 'small' ? 0.7 : 1));
+    if (mount && settings.stageMode !== 'full') {
+      mount.style.height = `${clampSize(layout.stageHeight, 140, 640)}px`;
+      mount.style.zoom = String(stageZoom);
+    }
     const scripts = root.querySelector('#scripts');
     if (scripts) scripts.style.zoom = String(clampZoom(settings.codeZoom || 1));
+    const label = root.querySelector('#zoom-label');
+    if (label) label.textContent = `${Math.round((settings.codeZoom || 1) * 100)}%`;
+    const stageLabel = root.querySelector('#stage-zoom');
+    if (stageLabel) stageLabel.textContent = `${Math.round(stageZoom * 100)}%`;
+    shell.classList.toggle('tool-open', !!state.tool);
   }
 
   function labels() {
     root.querySelector('#tagline').textContent = t('tagline');
+    root.querySelector('#menu-file').textContent = t('file');
+    root.querySelector('#menu-edit').textContent = t('edit');
+    root.querySelector('#menu-view').textContent = t('view');
+    root.querySelector('#menu-ext').textContent = t('extensions');
+    root.querySelector('#menu-help').textContent = t('help');
     root.querySelector('#flag').textContent = t('flag');
+    root.querySelector('#flag').title = `${t('flag')} (Leertaste)`;
     root.querySelector('#stop').textContent = t('stop');
+    root.querySelector('#stop').title = t('stop');
     root.querySelector('#undo').textContent = t('undo');
+    root.querySelector('#undo').title = 'Strg+Z';
     root.querySelector('#redo').textContent = t('redo');
+    root.querySelector('#redo').title = 'Strg+Umschalt+Z';
     root.querySelector('#new').textContent = t('newProject');
     root.querySelector('#open').textContent = t('open');
     root.querySelector('#save').textContent = t('save');
@@ -149,18 +226,29 @@ export function mount(root, ctx) {
     select.value = current;
     root.querySelector('#project-name').value = session.project.name || '';
     const small = root.querySelector('#stage-small');
-    if (small) small.textContent = t('stageSmall');
+    if (small) { small.textContent = t('stageSmall'); small.title = t('stageSmall'); }
+    const normal = root.querySelector('#stage-normal');
+    if (normal) { normal.textContent = t('stageNormal'); normal.title = t('stageNormal'); }
+    const large = root.querySelector('#stage-large');
+    if (large) { large.textContent = t('stageLarge'); large.title = t('stageLarge'); }
     const full = root.querySelector('#stage-full');
-    if (full) full.textContent = t('stageFull');
+    if (full) { full.textContent = t('stageFull'); full.title = t('stageFull'); }
+    const reset = root.querySelector('#code-reset');
+    if (reset) { reset.textContent = t('zoomReset'); reset.title = t('zoomReset'); }
+    const fit = root.querySelector('#code-fit');
+    if (fit) { fit.textContent = t('zoomFit'); fit.title = t('zoomFit'); }
+    const showTour = root.querySelector('#show-tour');
+    if (showTour) showTour.textContent = t('tour');
+    root.querySelectorAll('[data-format]').forEach((button) => { button.textContent = t(`format_${button.dataset.format}`); });
+    root.querySelectorAll('[data-blocks]').forEach((button) => { button.textContent = t(`blocks_${button.dataset.blocks}`); });
+    root.querySelectorAll('button[data-pane]').forEach((button) => { if (t(button.dataset.pane)) button.textContent = t(button.dataset.pane); });
     applyLayout();
     const drawSave = root.querySelector('#draw-save');
     if (drawSave) drawSave.textContent = t('drawSave');
     const drawClear = root.querySelector('#draw-clear');
     if (drawClear) drawClear.textContent = '×';
-    const tabs = wideQuery.matches
-      ? [['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['unix', 'unix'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']]
-      : [['blocks', 'blocks'], ['scripts', 'scripts'], ['stage', 'stage'], ['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['unix', 'unix'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']];
-    root.querySelector('#tabs').innerHTML = tabs.map(([id, key]) => `<button type="button" data-pane="${id}" class="${state.pane === id || (wideQuery.matches && state.tool === id) ? 'active' : ''}">${esc(t(key))}</button>`).join('');
+    const tabs = wideQuery.matches ? [] : [['code', 'code'], ['stage', 'stage'], ['sprites', 'sprites']];
+    root.querySelector('#tabs').innerHTML = tabs.map(([id, key]) => `<button type="button" data-pane="${id}" class="${state.pane === id ? 'active' : ''}">${esc(t(key))}</button>`).join('');
     root.querySelector('#tool-tabs').innerHTML = '';
     shell.dataset.pane = wideQuery.matches ? 'wide' : state.pane;
     shell.classList.toggle('wide', wideQuery.matches);
@@ -180,7 +268,11 @@ export function mount(root, ctx) {
 
   function renderPalette() {
     const color = paintFor(settings.theme, state.category);
-    const items = blocksInCategory(state.category).map((spec) => {
+    const query = (state.search || '').trim().toLowerCase();
+    const items = blocksInCategory(state.category).filter((spec) => {
+      if (!query) return true;
+      return labelFor(spec, settings.lang).toLowerCase().includes(query) || spec.opcode.includes(query);
+    }).map((spec) => {
       const made = createBlock(spec.opcode);
       return `<div class="block ${spec.type}" data-opcode="${spec.opcode}" style="background:${color.c1}">${renderLabel(labelFor(spec, settings.lang), made, spec, '', '')}</div>`;
     }).join('');
@@ -203,7 +295,7 @@ export function mount(root, ctx) {
       if (state.category !== 'myblocks' && state.category !== 'ai') continue;
       extra += ext.blocks.map((block) => `<button type="button" data-ext="${esc(ext.id)}" data-ext-op="${esc(block.opcode)}" style="background:${ext.color};color:white">${esc(block.text)}</button>`).join('');
     }
-    root.querySelector('#palette').innerHTML = `<p class="hint">${esc(t('clickAdd'))}</p>${extra}${items}`;
+    root.querySelector('#palette').innerHTML = `<input id="block-search" type="search" value="${esc(state.search || '')}" placeholder="${esc(t('search'))}" aria-label="${esc(t('search'))}"><p class="hint">${esc(t('clickAdd'))}</p>${extra}${items}`;
   }
 
   function renderArg(expr, specArg, scriptId, route, argpath) {
@@ -330,7 +422,6 @@ export function mount(root, ctx) {
         <label>${esc(t('turnUser'))}<input id="turn-user" type="text" spellcheck="false"></label>
         <label>${esc(t('turnCred'))}<input id="turn-cred" type="password" autocomplete="off" spellcheck="false"></label>
         <p class="hint">${esc(t('serverHint'))}</p>
-        <label>${esc(t('theme'))}<select id="theme">${Object.entries(THEMES).map(([id, item]) => `<option value="${id}">${esc(settings.lang === 'en' ? item.en : item.de)}</option>`).join('')}</select></label>
         <label class="row"><input id="ai-blocks" type="checkbox"> ${esc(t('aiBlocks'))}</label>
         <p class="hint">${esc(t('aiBlocksHint'))}</p>
       </section>
@@ -374,7 +465,7 @@ export function mount(root, ctx) {
       const title = settings.lang === 'en' ? color.en : color.de;
       const lines = blocksInCategory(id).map((spec) => `<li><code>${esc(spec.opcode)}</code> — ${esc(labelFor(spec, settings.lang))}</li>`).join('');
       return `<h3 style="color:${color.c3}">${esc(title)}</h3><ul>${lines}</ul>`;
-    }).join('') + `<h3>${esc(t('features'))}</h3><pre class="out">${esc(featuresDoc)}</pre><h3>Beispiele</h3><pre class="out">${esc(examplesDoc)}</pre><h3>Vorschläge für später</h3><pre class="out">${esc(laterDoc)}</pre>`;
+    }).join('') + `<h3>${esc(t('shortcuts'))}</h3><pre class="out">${esc(t('shortcutList'))}</pre><h3>${esc(t('features'))}</h3><pre class="out">${esc(featuresDoc)}</pre><h3>Beispiele</h3><pre class="out">${esc(examplesDoc)}</pre><h3>Vorschläge für später</h3><pre class="out">${esc(laterDoc)}</pre>`;
   }
 
   function refresh() {
@@ -492,10 +583,43 @@ export function mount(root, ctx) {
   let suppressClick = false;
   root.addEventListener('click', (event) => {
     if (suppressClick) { suppressClick = false; return; }
+    const menuBtn = event.target.closest('button[data-menu]');
+    if (menuBtn) {
+      const pop = menuBtn.parentElement.querySelector('.menu-pop');
+      const open = pop.hidden;
+      root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
+      pop.hidden = !open;
+      return;
+    }
+    if (!event.target.closest('.menu')) root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
+    const format = event.target.closest('button[data-format]');
+    if (format) {
+      settings.format = format.dataset.format;
+      settings.layout = { ...(settings.layout || {}) };
+      saveSettings(settings);
+      root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
+      refresh();
+      return;
+    }
+    const blocks = event.target.closest('button[data-blocks]');
+    if (blocks) {
+      settings.blockStyle = blocks.dataset.blocks;
+      saveSettings(settings);
+      root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
+      refresh();
+      return;
+    }
     const pane = event.target.closest('button[data-pane]');
     if (pane) {
-      state.pane = pane.dataset.pane;
-      if (!['blocks', 'scripts', 'stage'].includes(state.pane)) state.tool = state.pane;
+      const id = pane.dataset.pane;
+      if (['code', 'blocks', 'scripts', 'stage', 'sprites'].includes(id)) {
+        state.pane = id === 'blocks' || id === 'scripts' ? 'code' : id;
+        state.tool = '';
+      } else {
+        state.tool = id;
+        state.pane = wideQuery.matches ? state.pane : id;
+      }
+      root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
       refresh();
       return;
     }
@@ -553,6 +677,14 @@ export function mount(root, ctx) {
   });
 
   root.addEventListener('input', (event) => {
+    if (event.target.id === 'block-search') {
+      state.search = event.target.value;
+      const start = event.target.selectionStart;
+      renderPalette();
+      const field = root.querySelector('#block-search');
+      if (field) { field.focus(); field.setSelectionRange(start, start); }
+      return;
+    }
     if (event.target.matches('.block input, .block select, .nested input, .nested select')) {
       if (!state.editing) state.editing = JSON.stringify(session.project);
       onLiteral(event.target);
@@ -1046,11 +1178,15 @@ export function mount(root, ctx) {
   };
 
   ctx.bridge.sample = (x, y) => stageView.sample(x, y);
-  root.querySelector('#stage-small').onclick = () => {
-    settings.stageMode = settings.stageMode === 'small' ? 'normal' : 'small';
+  const setStage = (mode, zoom) => {
+    settings.stageMode = mode;
+    if (zoom) settings.stageZoom = zoom;
     saveSettings(settings);
     applyLayout();
   };
+  root.querySelector('#stage-small').onclick = () => setStage('small', 0.7);
+  root.querySelector('#stage-normal').onclick = () => setStage('normal', 1);
+  root.querySelector('#stage-large').onclick = () => setStage('large', 1.35);
   root.querySelector('#stage-full').onclick = () => {
     const mount = root.querySelector('#stage-mount');
     if (!document.fullscreenElement) mount.requestFullscreen?.();
@@ -1063,6 +1199,115 @@ export function mount(root, ctx) {
   };
   root.querySelector('#code-in').onclick = () => setZoom((settings.codeZoom || 1) + 0.1);
   root.querySelector('#code-out').onclick = () => setZoom((settings.codeZoom || 1) - 0.1);
+  root.querySelector('#code-reset').onclick = () => setZoom(1);
+  root.querySelector('#code-fit').onclick = () => {
+    const workspace = root.querySelector('#workspace');
+    setZoom(workspace.clientWidth / 680);
+  };
+  const stageMount = root.querySelector('#stage-mount');
+  stageMount.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const factor = event.deltaY < 0 ? 1.08 : 0.92;
+    settings.stageZoom = clampZoom((settings.stageZoom || 1) * factor);
+    settings.stageMode = 'normal';
+    saveSettings(settings);
+    applyLayout();
+  }, { passive: false });
+  let stagePointers = new Map();
+  let stagePan = null;
+  stageMount.addEventListener('pointerdown', (event) => {
+    if (event.shiftKey) {
+      stagePan = { id: event.pointerId, x: event.clientX, y: event.clientY, left: stageMount.scrollLeft, top: stageMount.scrollTop };
+      event.stopPropagation();
+    }
+    if (event.pointerType === 'touch') stagePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  }, true);
+  stageMount.addEventListener('pointermove', (event) => {
+    if (stagePan && event.pointerId === stagePan.id) {
+      stageMount.scrollLeft = stagePan.left - (event.clientX - stagePan.x);
+      stageMount.scrollTop = stagePan.top - (event.clientY - stagePan.y);
+    }
+    if (!stagePointers.has(event.pointerId) || stagePointers.size < 2) return;
+    const previous = [...stagePointers.values()];
+    stagePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const next = [...stagePointers.values()];
+    const before = Math.hypot(previous[0].x - previous[1].x, previous[0].y - previous[1].y);
+    const after = Math.hypot(next[0].x - next[1].x, next[0].y - next[1].y);
+    if (before > 0) {
+      settings.stageZoom = clampZoom((settings.stageZoom || 1) * (after / before));
+      applyLayout();
+    }
+  });
+  stageMount.addEventListener('pointerup', (event) => {
+    stagePointers.delete(event.pointerId);
+    if (stagePan?.id === event.pointerId) stagePan = null;
+  });
+  root.addEventListener('contextmenu', (event) => {
+    const block = event.target.closest('.workspace .block');
+    const menu = root.querySelector('#ctx');
+    if (!block) { menu.hidden = true; return; }
+    event.preventDefault();
+    state.selection = { scriptId: block.dataset.script, route: block.dataset.route };
+    menu.hidden = false;
+    menu.style.left = `${event.clientX}px`;
+    menu.style.top = `${event.clientY}px`;
+    menu.innerHTML = `<button type="button" data-ctx="copy">${esc(t('duplicate'))}</button><button type="button" data-ctx="delete">${esc(t('deleteBlock'))}</button>`;
+  });
+  root.addEventListener('click', (event) => {
+    const action = event.target.closest('[data-ctx]');
+    if (!action) return;
+    if (action.dataset.ctx === 'delete') deleteSelection();
+    if (action.dataset.ctx === 'copy' && state.selection) {
+      const current = sprite();
+      const script = current.scripts.find((item) => item.id === state.selection.scriptId);
+      const block = script && blockFromRoute(script, state.selection.route);
+      if (block) insertMade(cloneData(block), specByOpcode(block.opcode) || { type: 'command' });
+    }
+    root.querySelector('#ctx').hidden = true;
+  });
+  const tourSteps = () => [t('tour1'), t('tour2'), t('tour3'), t('tour4')];
+  const showTour = (step) => {
+    const box = root.querySelector('#tour');
+    state.tour = step;
+    if (step >= tourSteps().length) {
+      box.hidden = true;
+      localStorage.setItem('bdc.tour.v1', '1');
+      return;
+    }
+    box.hidden = false;
+    root.querySelector('#tour-text').textContent = tourSteps()[step];
+    root.querySelector('#tour-next').textContent = step === tourSteps().length - 1 ? t('tourDone') : t('tourNext');
+    root.querySelector('#tour-skip').textContent = t('tourSkip');
+  };
+  root.querySelector('#tour-next').onclick = () => showTour(state.tour + 1);
+  root.querySelector('#tour-skip').onclick = () => { root.querySelector('#tour').hidden = true; localStorage.setItem('bdc.tour.v1', '1'); };
+  root.querySelector('#show-tour').onclick = () => showTour(0);
+  if (!localStorage.getItem('bdc.tour.v1')) showTour(0);
+  window.addEventListener('keydown', (event) => {
+    const typing = event.target.matches('input, textarea, select');
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) session.redo();
+      else session.undo();
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      root.querySelector('#save').click();
+    } else if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '=')) {
+      event.preventDefault();
+      setZoom((settings.codeZoom || 1) + 0.1);
+    } else if ((event.ctrlKey || event.metaKey) && event.key === '-') {
+      event.preventDefault();
+      setZoom((settings.codeZoom || 1) - 0.1);
+    } else if ((event.ctrlKey || event.metaKey) && event.key === '0') {
+      event.preventDefault();
+      setZoom(1);
+    } else if (!typing && event.key === ' ') {
+      event.preventDefault();
+      root.querySelector('#flag').click();
+    } else if (!typing && (event.key === 'Delete' || event.key === 'Backspace') && state.selection) {
+      deleteSelection();
+    }
+  });
   root.querySelector('#workspace').addEventListener('wheel', (event) => {
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();

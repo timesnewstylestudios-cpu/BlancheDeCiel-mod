@@ -18,7 +18,10 @@ export const defaultSettings = {
   turnUser: '',
   turnCred: '',
   theme: 'light',
+  format: 'classic',
+  blockStyle: 'normal',
   codeZoom: 1,
+  stageZoom: 1,
   stageMode: 'normal',
   layout: { cats: 112, palette: 280, stage: 380, stageHeight: 280 },
 };

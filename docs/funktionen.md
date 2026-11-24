@@ -2,7 +2,8 @@
 
 BlancheDeCiel ist ein statischer Blockeditor. Dieselbe Beschreibung steht in der Hilfe der App.
 
-- Blöcke antippen oder ziehen. Kategorien und Farben folgen der PenguinMod-Palette.
+- Menü: Datei, Bearbeiten, Ansicht, Erweiterungen, Hilfe. Ansicht wählt Layout und Blockform. Netz, Rechner und KI liegen unter Erweiterungen.
+- Blöcke antippen oder ziehen. Die Palette hat eine Suche. Kategorien und Farben folgen der PenguinMod-Palette.
 - Klone, eigene Blöcke mit Parametern und `warp`, Kostüme, Töne, Rucksack.
 - Import von `.sb3`, `.pmp`, HTML mit Projekt und einer JavaScript-Teilmenge. JavaScript wird nicht ausgeführt.
 - KI: nur das lokale Netz im Browser, ohne Schlüssel. „Übernehmen“ lernt aus dem Vorschlag. Der optionale Server ist der Treffpunkt, siehe `docs/CloudflareTutorial.md`.
