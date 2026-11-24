@@ -85,6 +85,29 @@ export function startBrowserGrid(nodeId) {
       if (!link) throw new Error('no-offer');
       await link.accept(sdp);
     },
+    joinMeet(url, room) {
+      if (!webrtcAvailable()) throw new Error('webrtc-missing');
+      const wsUrl = `${String(url).replace(/^http/, 'ws').replace(/\/$/, '')}/meet?room=${encodeURIComponent(room || 'himmel')}`;
+      const ws = new WebSocket(wsUrl);
+      const link = createLink(watch);
+      links.push(link);
+      ws.onmessage = async (event) => {
+        let msg = {};
+        try { msg = JSON.parse(event.data); } catch { return; }
+        if (msg.t === 'start') {
+          const sdp = await link.offer();
+          ws.send(JSON.stringify({ t: 'signal', kind: 'offer', sdp }));
+        } else if (msg.t === 'signal' && msg.kind === 'offer') {
+          const sdp = await link.answer(msg.sdp);
+          ws.send(JSON.stringify({ t: 'signal', kind: 'answer', sdp }));
+          ws.close();
+        } else if (msg.t === 'signal' && msg.kind === 'answer') {
+          await link.accept(msg.sdp);
+          ws.close();
+        }
+      };
+      return ws;
+    },
     joinRoom(url, room, onStatus) {
       this.roomLink?.close();
       this.roomLink = connectTracker({

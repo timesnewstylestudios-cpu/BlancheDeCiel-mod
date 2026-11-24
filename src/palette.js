@@ -20,11 +20,13 @@ export const PALETTE = {
   grid: { de: 'Netz', en: 'Grid', c1: '#0F9D8A', c2: '#0C7C6E', c3: '#095E54' },
   ai: { de: 'KI', en: 'AI', c1: '#5B4B8A', c2: '#46396E', c3: '#322850' },
   analyse: { de: 'Analyse', en: 'Analyse', c1: '#6B5B95', c2: '#55497A', c3: '#3E345C' },
+  neural: { de: 'Netz', en: 'Neural', c1: '#3D8B8B', c2: '#2F6F6F', c3: '#215555' },
+  unix: { de: 'Rechner', en: 'Shell', c1: '#5A6A7A', c2: '#465564', c3: '#33404C' },
 };
 
 export const CATEGORY_ORDER = [
   'motion', 'looks', 'sound', 'events', 'control', 'sensing', 'operators',
-  'variables', 'lists', 'myblocks', 'pen', 'audio', 'graphics', 'grid', 'ai', 'analyse',
+  'variables', 'lists', 'myblocks', 'pen', 'audio', 'graphics', 'grid', 'ai', 'neural', 'unix', 'analyse',
 ];
 
 export function categoryColor(id) {

@@ -5,6 +5,8 @@ import { CATEGORY_ORDER } from './palette.js';
 import { clampSize, clampZoom, paintFor, THEMES } from './themes.js';
 import { beginLogin } from './oauth.js';
 import featuresDoc from '../docs/funktionen.md?raw';
+import examplesDoc from '../docs/beispiele.md?raw';
+import laterDoc from '../docs/vorschlaege.md?raw';
 import { blocksInCategory, createBlock, labelFor, specByOpcode } from './catalog.js';
 import { applyBdl, errorText, extractBdl } from './bdl.js';
 import { cloneData, createProject, uid } from './model.js';
@@ -160,10 +162,10 @@ export function mount(root, ctx) {
     const drawClear = root.querySelector('#draw-clear');
     if (drawClear) drawClear.textContent = '×';
     const tabs = wideQuery.matches
-      ? [['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']]
-      : [['blocks', 'blocks'], ['scripts', 'scripts'], ['stage', 'stage'], ['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']];
+      ? [['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['unix', 'unix'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']]
+      : [['blocks', 'blocks'], ['scripts', 'scripts'], ['stage', 'stage'], ['ai', 'ai'], ['import', 'import'], ['grid', 'grid'], ['unix', 'unix'], ['backpack', 'backpack'], ['settings', 'settings'], ['help', 'help']];
     root.querySelector('#tabs').innerHTML = tabs.map(([id, key]) => `<button type="button" data-pane="${id}" class="${state.pane === id || (wideQuery.matches && state.tool === id) ? 'active' : ''}">${esc(t(key))}</button>`).join('');
-    root.querySelector('#tool-tabs').innerHTML = ['ai', 'import', 'grid', 'backpack', 'settings', 'help'].map((id) => `<button type="button" data-tool="${id}" class="${state.tool === id ? 'active' : ''}">${esc(t(id))}</button>`).join('');
+    root.querySelector('#tool-tabs').innerHTML = ['ai', 'import', 'grid', 'unix', 'backpack', 'settings', 'help'].map((id) => `<button type="button" data-tool="${id}" class="${state.tool === id ? 'active' : ''}">${esc(t(id))}</button>`).join('');
     shell.dataset.pane = wideQuery.matches ? 'wide' : state.pane;
     shell.classList.toggle('wide', wideQuery.matches);
     for (const section of root.querySelectorAll('[data-tool-panel]')) {
@@ -284,10 +286,13 @@ export function mount(root, ctx) {
     root.querySelector('#tool').innerHTML = `
       <section data-tool-panel="ai">
         <p>${esc(t('aiIntro'))}</p>
+        <p id="x-user-ai"></p>
+        <div class="row"><button type="button" class="primary" data-x-login>${esc(t('xLogin'))}</button><button type="button" id="ai-local">${esc(t('localSuggest'))}</button><button type="button" id="ai-send">${esc(t('aiSend'))}</button></div>
         <textarea id="ai-request"></textarea>
-        <div class="row"><button type="button" class="primary" id="ai-send">${esc(t('aiSend'))}</button><span id="ai-estimate"></span></div>
+        <span id="ai-estimate"></span>
         <label>${esc(t('aiResult'))}<textarea id="ai-output"></textarea></label>
-        <button type="button" id="ai-apply">${esc(t('aiApply'))}</button>
+        <div class="row"><button type="button" class="primary" id="ai-apply">${esc(t('aiApply'))}</button><button type="button" id="ai-learn">${esc(t('learnOrder'))}</button></div>
+        <div class="row"><button type="button" id="ai-export">${esc(t('exportWeights'))}</button><button type="button" id="ai-import">${esc(t('importWeights'))}</button></div>
         <p id="ai-status"></p>
       </section>
       <section data-tool-panel="import">
@@ -312,27 +317,37 @@ export function mount(root, ctx) {
         <label>${esc(t('room'))}<input id="room" type="text" value="himmel"></label>
         <label>${esc(t('tracker'))}<input id="tracker" type="text" placeholder="wss://tracker.openwebtorrent.com"></label>
         <p class="hint">${esc(t('trackerHint'))}</p>
-        <div class="row"><button type="button" id="join-room">${esc(t('joinRoom'))}</button></div>
+        <div class="row"><button type="button" id="join-room">${esc(t('joinRoom'))}</button><button type="button" id="join-meet">${esc(t('serverUrl'))}</button></div>
         <p class="hint">${esc(t('qrHint'))}</p>
         <div id="qr"></div>
         <h3>${esc(t('tables'))}</h3>
         <pre class="out" id="table-view"></pre>
       </section>
+      <section data-tool-panel="unix">
+        <p>${esc(t('shellIntro'))}</p>
+        <input id="shell-line" type="text" value="audit">
+        <button type="button" id="shell-run">${esc(t('shellRun'))}</button>
+        <pre class="out" id="shell-out"></pre>
+      </section>
       <section data-tool-panel="settings">
+        <p id="x-user"></p>
+        <label>${esc(t('serverUrl'))}<input id="server-url" type="text" spellcheck="false" placeholder="https://…"></label>
+        <label>${esc(t('xClient'))}<input id="x-client" type="text" spellcheck="false"></label>
+        <div class="row"><button type="button" class="primary" data-x-login>${esc(t('xLogin'))}</button><button type="button" id="use-local">${esc(t('useLocal'))}</button></div>
+        <label>${esc(t('theme'))}<select id="theme">${Object.entries(THEMES).map(([id, item]) => `<option value="${id}">${esc(settings.lang === 'en' ? item.en : item.de)}</option>`).join('')}</select></label>
+        <details>
+          <summary>${esc(t('advanced'))}</summary>
         <label>${esc(t('apiKey'))}<input id="api-key" type="password" autocomplete="off" spellcheck="false"></label>
         <label class="row"><input id="remember-key" type="checkbox"> ${esc(t('rememberKey'))}</label>
         <p class="note">${esc(t('rememberWarn'))}</p>
-        <p id="x-user"></p>
-        <label>${esc(t('proxyUrl'))}<input id="proxy-url" type="text" spellcheck="false"></label>
-        <label>${esc(t('xClient'))}<input id="x-client" type="text" spellcheck="false"></label>
-        <button type="button" id="x-login">${esc(t('xLogin'))}</button>
-        <label>${esc(t('theme'))}<select id="theme">${Object.entries(THEMES).map(([id, item]) => `<option value="${id}">${esc(settings.lang === 'en' ? item.en : item.de)}</option>`).join('')}</select></label>
+        <label class="row"><input id="use-key" type="checkbox"> ${esc(t('apiKey'))}</label>
         <label>${esc(t('model'))}<input id="api-model" type="text"></label>
         <label>${esc(t('baseUrl'))}<input id="api-base" type="text"></label>
         <label>${esc(t('tracker'))}<input id="tracker-setting" type="text"></label>
         <label class="row"><input id="ai-blocks" type="checkbox"> ${esc(t('aiBlocks'))}</label>
         <p class="hint">${esc(t('aiBlocksHint'))}</p>
         <button type="button" id="forget-key">${esc(t('forgetKey'))}</button>
+        </details>
       </section>
       <section data-tool-panel="backpack">
         <button type="button" id="pack-script">${esc(t('backpackIn'))}</button>
@@ -345,8 +360,12 @@ export function mount(root, ctx) {
     root.querySelector('#api-key').value = settings.apiKey || '';
     const remember = root.querySelector('#remember-key');
     if (remember) remember.checked = !!settings.rememberKey;
-    const proxy = root.querySelector('#proxy-url');
-    if (proxy) proxy.value = settings.proxyUrl || '';
+    const server = root.querySelector('#server-url');
+    if (server) server.value = settings.serverUrl || settings.proxyUrl || '';
+    const useKey = root.querySelector('#use-key');
+    if (useKey) useKey.checked = settings.aiMode === 'key';
+    const whoAi = root.querySelector('#x-user-ai');
+    if (whoAi) whoAi.textContent = settings.xUser ? `@${settings.xUser}` : '';
     const client = root.querySelector('#x-client');
     if (client) client.value = settings.xClientId || '';
     const who = root.querySelector('#x-user');
@@ -377,7 +396,7 @@ export function mount(root, ctx) {
       const title = settings.lang === 'en' ? color.en : color.de;
       const lines = blocksInCategory(id).map((spec) => `<li><code>${esc(spec.opcode)}</code> — ${esc(labelFor(spec, settings.lang))}</li>`).join('');
       return `<h3 style="color:${color.c3}">${esc(title)}</h3><ul>${lines}</ul>`;
-    }).join('') + `<h3>${esc(t('features'))}</h3><pre class="out">${esc(featuresDoc)}</pre><h3>${esc(t('dsl'))}</h3><pre class="out">${esc(bdlDoc)}</pre>`;
+    }).join('') + `<h3>${esc(t('features'))}</h3><pre class="out">${esc(featuresDoc)}</pre><h3>Beispiele</h3><pre class="out">${esc(examplesDoc)}</pre><h3>Vorschläge für später</h3><pre class="out">${esc(laterDoc)}</pre><h3>${esc(t('dsl'))}</h3><pre class="out">${esc(bdlDoc)}</pre>`;
   }
 
   function refresh() {
@@ -809,19 +828,29 @@ export function mount(root, ctx) {
   };
 
   function wireTools() {
+    root.querySelector('#ai-local').onclick = () => {
+      settings.aiMode = 'local';
+      saveSettings(settings);
+      const text = ctx.local.suggest(session.project);
+      state.lastSuggestion = text;
+      root.querySelector('#ai-output').value = text;
+      root.querySelector('#ai-status').textContent = t('aiApply');
+    };
     root.querySelector('#ai-send').onclick = async () => {
       const status = root.querySelector('#ai-status');
-      if (!settings.apiKey && !(settings.proxyUrl && settings.xToken)) { status.textContent = t('aiKeyMissing'); state.tool = 'settings'; refresh(); return; }
+      settings.aiMode = 'x';
+      saveSettings(settings);
+      const server = settings.serverUrl || settings.proxyUrl;
+      if (!server || !settings.xToken) { status.textContent = t('aiKeyMissing'); return; }
       const request = root.querySelector('#ai-request').value;
       const messages = buildAiMessages(session.project, request);
       status.textContent = t('aiSending');
       try {
         const result = await ctx.sendChat(messages.system, messages.user);
         const bdl = extractBdl(result.content);
+        state.lastSuggestion = bdl;
         root.querySelector('#ai-output').value = bdl;
-        const applied = applyBdl(session.project, bdl);
-        if (!applied.ok) status.textContent = applied.errors.map((error) => errorText(error, settings.lang)).join('; ');
-        else { session.touch(); status.textContent = t('aiApplied'); }
+        status.textContent = t('aiApply');
         if (result.usage) status.textContent += ` (${t('aiUsage')} ${result.usage.total_tokens ?? ''})`;
       } catch (error) {
         status.textContent = `${t('error')}: ${error.message || error}`;
@@ -832,7 +861,39 @@ export function mount(root, ctx) {
       const applied = applyBdl(session.project, source);
       const status = root.querySelector('#ai-status');
       if (!applied.ok) status.textContent = applied.errors.map((error) => errorText(error, settings.lang)).join('; ');
-      else { session.touch(); status.textContent = t('aiApplied'); }
+      else {
+        ctx.local.observe(state.lastSuggestion || '', source);
+        ctx.persistLocal?.();
+        session.touch();
+        status.textContent = t('aiApplied');
+      }
+    };
+    root.querySelector('#ai-learn').onclick = () => {
+      const current = sprite();
+      ctx.local.learnBlocks((current?.scripts || []).flatMap((script) => script.blocks || []));
+      ctx.persistLocal?.();
+      root.querySelector('#ai-status').textContent = t('learnOrder');
+    };
+    root.querySelector('#ai-export').onclick = () => {
+      const pack = ctx.local.exportPack();
+      gridApi.node.share('gewichte:lokal', [[JSON.stringify(pack)]]);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([JSON.stringify(pack)], { type: 'application/json' }));
+      link.download = 'gewichte.json';
+      link.click();
+    };
+    root.querySelector('#ai-import').onclick = async () => {
+      const rows = await gridApi.node.fetch('gewichte:lokal');
+      const raw = rows?.[0]?.[0];
+      if (!raw) { root.querySelector('#ai-status').textContent = t('importWeights'); return; }
+      ctx.local.importPack(JSON.parse(raw));
+      ctx.persistLocal?.();
+      root.querySelector('#ai-status').textContent = t('importWeights');
+    };
+    root.querySelector('#shell-run').onclick = async () => {
+      const line = root.querySelector('#shell-line').value;
+      const settled = await Promise.resolve(ctx.shell(line));
+      root.querySelector('#shell-out').textContent = `${settled.out || ''}${settled.err ? `\n${settled.err}` : ''}`;
     };
     root.querySelector('#import-pick').onclick = () => fileInput.click();
     root.querySelector('#import-apply').onclick = () => {
@@ -872,6 +933,13 @@ export function mount(root, ctx) {
       const result = await bluetoothPing();
       setStatus(result.ok ? `${result.path || ''} ${result.name || ''}` : `${t('btNo')}: ${result.reason}`);
     };
+    root.querySelector('#join-meet').onclick = () => {
+      const url = settings.coordinatorUrl || settings.serverUrl || settings.proxyUrl;
+      const room = root.querySelector('#room').value.trim() || 'himmel';
+      if (!url) { setStatus(t('serverUrl')); return; }
+      try { gridApi.joinMeet(url, room); setStatus(t('connected')); }
+      catch (error) { setStatus(error.message || String(error)); }
+    };
     root.querySelector('#join-room').onclick = () => {
       const room = root.querySelector('#room').value.trim();
       const url = (root.querySelector('#tracker').value || settings.trackerUrl || '').trim();
@@ -903,21 +971,35 @@ export function mount(root, ctx) {
       settings.rememberKey = !!root.querySelector('#remember-key')?.checked;
       settings.model = root.querySelector('#api-model').value.trim() || 'grok-4.7';
       settings.baseUrl = root.querySelector('#api-base').value.trim() || 'https://api.x.ai/v1';
-      settings.proxyUrl = root.querySelector('#proxy-url')?.value.trim() || '';
+      settings.serverUrl = root.querySelector('#server-url')?.value.trim() || '';
+      settings.proxyUrl = settings.serverUrl;
       settings.xClientId = root.querySelector('#x-client')?.value.trim() || '';
       settings.theme = root.querySelector('#theme')?.value || 'light';
+      settings.aiMode = root.querySelector('#use-key')?.checked ? 'key' : (settings.aiMode === 'local' ? 'local' : 'x');
       document.documentElement.dataset.theme = settings.theme;
       saveSettings(settings);
       refresh();
     };
     root.querySelector('#api-key').onchange = persistSettings;
     root.querySelector('#remember-key').onchange = persistSettings;
-    root.querySelector('#proxy-url').onchange = persistSettings;
+    root.querySelector('#server-url').onchange = persistSettings;
     root.querySelector('#x-client').onchange = persistSettings;
     root.querySelector('#theme').onchange = persistSettings;
-    root.querySelector('#x-login').onclick = () => {
-      if (!settings.xClientId || !settings.proxyUrl) { setStatus(t('proxyUrl')); return; }
-      beginLogin(settings.xClientId);
+    root.querySelector('#use-key').onchange = persistSettings;
+    root.querySelectorAll('[data-x-login]').forEach((button) => {
+      button.onclick = () => {
+        settings.aiMode = 'x';
+        saveSettings(settings);
+        if (!settings.xClientId || !(settings.serverUrl || settings.proxyUrl)) { setStatus(t('serverUrl')); return; }
+        beginLogin(settings.xClientId);
+      };
+    });
+    root.querySelector('#use-local').onclick = () => {
+      settings.aiMode = 'local';
+      const box = root.querySelector('#use-key');
+      if (box) box.checked = false;
+      saveSettings(settings);
+      setStatus(t('useLocal'));
     };
     root.querySelector('#api-model').onchange = persistSettings;
     root.querySelector('#api-base').onchange = persistSettings;
