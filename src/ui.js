@@ -368,7 +368,7 @@ export function mount(root, ctx) {
       const title = script.proc ? `${t('proc')} ${script.proc}` : `${Math.round(script.x)}, ${Math.round(script.y)}`;
       return `<section class="script-card" data-script-id="${esc(script.id)}" style="left:${script.x}px;top:${script.y}px"><header data-move-script="${esc(script.id)}">${esc(title)}</header>${blocks || `<div class="hint">${esc(t('emptyDrop'))}</div>`}</section>`;
     }).join('');
-    root.querySelector('#workspace').innerHTML = `<div class="scripts" id="scripts">${cards}<canvas id="minimap" width="120" height="80"></canvas></div><div class="row"><button type="button" id="tidy">${esc(t('tidy'))}</button><button type="button" id="delete-block">${esc(t('deleteBlock'))}</button></div>`;
+    root.querySelector('#workspace').innerHTML = `<div class="scroll-pad" aria-label="${esc(t('scroll'))}"><button type="button" id="scroll-left" title="${esc(t('scrollLeft'))}">←</button><button type="button" id="scroll-up" title="${esc(t('scrollUp'))}">↑</button><button type="button" id="scroll-right" title="${esc(t('scrollRight'))}">→</button><button type="button" id="scroll-down" title="${esc(t('scrollDown'))}">↓</button></div><div class="scripts" id="scripts">${cards}<canvas id="minimap" width="120" height="80"></canvas></div><div class="row"><button type="button" id="tidy">${esc(t('tidy'))}</button><button type="button" id="delete-block">${esc(t('deleteBlock'))}</button></div>`;
     const map = root.querySelector('#minimap');
     if (map) {
       const ctx2 = map.getContext('2d');
@@ -609,6 +609,12 @@ export function mount(root, ctx) {
       return;
     }
     if (!event.target.closest('.menu')) root.querySelectorAll('.menu-pop').forEach((item) => { item.hidden = true; });
+    const workspace = root.querySelector('#workspace');
+    const scrollBy = (x, y) => { if (workspace) { workspace.scrollLeft += x; workspace.scrollTop += y; } };
+    if (event.target.id === 'scroll-left') { scrollBy(-160, 0); return; }
+    if (event.target.id === 'scroll-right') { scrollBy(160, 0); return; }
+    if (event.target.id === 'scroll-up') { scrollBy(0, -160); return; }
+    if (event.target.id === 'scroll-down') { scrollBy(0, 160); return; }
     if (event.target.id === 'tidy') {
       session.update((project) => {
         const current = project.sprites.find((item) => item.id === state.spriteId);

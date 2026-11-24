@@ -48,8 +48,17 @@ export function addLayer(net, spec) {
     layer.units = 1;
   } else if (type === 'attention') {
     layer.units = input;
-    layer.dim = clampCount(spec.dim || 1);
+    layer.dim = clampCount(spec.dim || spec.units || 1);
+    layer.heads = Math.max(1, Math.min(8, spec.heads || 1));
     layer.w = [zeros(1)];
+    layer.b = [0];
+    if (layer.heads > 1) {
+      const headDim = Math.max(1, Math.floor(layer.dim / layer.heads));
+      const width = headDim * layer.heads;
+      layer.proj = Array.from({ length: layer.dim }, () => Array.from({ length: width }, () => next() * 0.05));
+    }
+  } else if (type === 'pool' || type === 'norm') {
+    layer.w = [[0]];
     layer.b = [0];
   } else if (type === 'lstm') {
     layer.h = zeros(units);
@@ -64,6 +73,18 @@ export function addLayer(net, spec) {
     }
     layer.w = [zeros(1)];
     layer.b = [0];
+    layer.stack = Math.max(1, Math.min(8, spec.stack || 1));
+    if (layer.stack > 1) {
+      layer.cells = Array.from({ length: layer.stack }, (_, depth) => ({
+        h: zeros(units),
+        c: zeros(units),
+        gates: Object.fromEntries(['i', 'f', 'o', 'g'].map((name) => [name, {
+          w: Array.from({ length: units }, () => Array.from({ length: depth === 0 ? input : units }, () => next() * 0.1)),
+          u: Array.from({ length: units }, () => Array.from({ length: units }, () => next() * 0.1)),
+          b: zeros(units),
+        }])),
+      }));
+    }
   } else {
     layer.w = Array.from({ length: units }, () => Array.from({ length: input + units }, () => next()));
     layer.b = zeros(units);
@@ -137,12 +158,13 @@ function mixGate(gate, input, hidden) {
 }
 
 function lstmStep(layer, input) {
+  const units = layer.units || layer.h.length;
   const i = mixGate(layer.gates.i, input, layer.h).map(sigmoid);
   const f = mixGate(layer.gates.f, input, layer.h).map(sigmoid);
   const o = mixGate(layer.gates.o, input, layer.h).map(sigmoid);
   const g = mixGate(layer.gates.g, input, layer.h).map((value) => Math.tanh(value));
   const next = [];
-  for (let unit = 0; unit < layer.units; unit += 1) {
+  for (let unit = 0; unit < units; unit += 1) {
     layer.c[unit] = f[unit] * (layer.c[unit] || 0) + i[unit] * g[unit];
     next.push(o[unit] * Math.tanh(layer.c[unit]));
   }
@@ -153,8 +175,14 @@ function lstmStep(layer, input) {
 function lstmForward(layer, input) {
   const width = Math.max(1, layer.input || 1);
   const steps = Math.max(1, Math.floor(input.length / width));
-  let last = layer.h.slice();
-  for (let step = 0; step < steps; step += 1) last = lstmStep(layer, input.slice(step * width, (step + 1) * width));
+  const cells = layer.cells || [layer];
+  let last = (cells[cells.length - 1].h || layer.h).slice();
+  for (let step = 0; step < steps; step += 1) {
+    let current = input.slice(step * width, (step + 1) * width);
+    for (const cell of cells) current = lstmStep(cell.gates ? cell : layer, current);
+    last = current;
+  }
+  layer.h = last.slice();
   return { out: last, input: input.slice() };
 }
 
@@ -165,17 +193,45 @@ function softmax(scores) {
   return exps.map((value) => value / sum);
 }
 
+function attend(tokens, query, dim) {
+  const scale = Math.sqrt(Math.max(1, dim));
+  const scores = tokens.map((token) => token.reduce((sum, value, index) => sum + value * (query[index] || 0), 0) / scale);
+  const weights = softmax(scores);
+  const out = Array.from({ length: query.length }, (_, col) => weights.reduce((sum, weight, index) => sum + weight * (tokens[index][col] || 0), 0));
+  return { weights, out };
+}
+
 function attentionForward(layer, input) {
   const dim = Math.max(1, layer.dim || 1);
   const seq = Math.max(1, Math.floor(input.length / dim));
   const tokens = [];
   for (let index = 0; index < seq; index += 1) tokens.push(input.slice(index * dim, (index + 1) * dim));
-  const query = tokens[tokens.length - 1];
-  const scores = tokens.map((token) => token.reduce((sum, value, index) => sum + value * (query[index] || 0), 0) / Math.sqrt(dim));
-  const weights = softmax(scores);
-  layer.weights = weights;
-  const out = Array.from({ length: dim }, (_, col) => weights.reduce((sum, weight, index) => sum + weight * (tokens[index][col] || 0), 0));
-  return { out, weights, input: input.slice() };
+  const heads = Math.max(1, layer.heads || 1);
+  if (heads === 1 || !layer.proj) {
+    const query = tokens[tokens.length - 1];
+    const attended = attend(tokens, query, dim);
+    layer.weights = attended.weights;
+    return { out: attended.out, weights: attended.weights, input: input.slice() };
+  }
+  const headDim = Math.max(1, Math.floor(dim / heads));
+  const parts = [];
+  const allWeights = [];
+  for (let head = 0; head < heads; head += 1) {
+    const slice = (token) => Array.from({ length: headDim }, (_, index) => token[(head * headDim + index) % token.length] || 0);
+    const headed = tokens.map(slice);
+    const attended = attend(headed, slice(tokens[tokens.length - 1]), headDim);
+    parts.push(attended.out);
+    allWeights.push(attended.weights);
+  }
+  const concat = parts.flat();
+  layer.weights = allWeights[0];
+  layer.concat = concat;
+  const out = (layer.proj || []).map((row) => row.reduce((sum, weight, index) => sum + weight * (concat[index] || 0), 0));
+  return { out, weights: layer.weights, input: input.slice() };
+}
+
+export function projectionGrad(concat, pred, target) {
+  return pred.map((value, row) => (concat || []).map((item) => (value - (target[row] || 0)) * item));
 }
 
 function forwardLayer(layer, input) {
@@ -183,6 +239,18 @@ function forwardLayer(layer, input) {
   if (layer.type === 'conv1d') return conv1dForward(layer, input);
   if (layer.type === 'conv2d') return conv2dForward(layer, input);
   if (layer.type === 'lstm') return lstmForward(layer, input);
+  if (layer.type === 'pool') {
+    const out = [];
+    for (let index = 0; index + 1 < input.length; index += 2) out.push(Math.max(input[index], input[index + 1]));
+    if (!out.length) out.push(input[0] || 0);
+    return { out, input: input.slice() };
+  }
+  if (layer.type === 'norm') {
+    const mean = input.reduce((sum, value) => sum + value, 0) / Math.max(1, input.length);
+    const variance = input.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, input.length);
+    const scale = Math.sqrt(variance) + 1e-5;
+    return { out: input.map((value) => (value - mean) / scale), input: input.slice() };
+  }
   if (layer.type === 'attention') return attentionForward(layer, input);
   return rnnForward(layer, input);
 }

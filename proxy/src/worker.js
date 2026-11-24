@@ -3,7 +3,9 @@
  */
 
 import { createRoom } from './room.js';
-import { charge, createBoard, pushMail, readMail } from './board.js';
+import { createBoard, pushMail, readMail } from './board.js';
+import { chargeStorage } from './quota.js';
+import { hmacSha1Base64, mintTurn } from './turn.js';
 
 const memory = createBoard(null);
 
@@ -28,16 +30,35 @@ export default {
     const origin = env.ALLOWED_ORIGIN || '*';
     if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), origin);
     const url = new URL(request.url);
-    const board = env.BOARD ? createBoard(env.BOARD) : memory;
+    const board = memory;
+    if (url.pathname === '/ice') {
+      const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+      if (env.TURN_SECRET && env.TURN_URL) {
+        iceServers.push(await mintTurn({ secret: env.TURN_SECRET, urls: env.TURN_URL, hmac: hmacSha1Base64 }));
+      } else if (env.CF_TURN_KEY && env.CF_TURN_TOKEN) {
+        const minted = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${env.CF_TURN_KEY}/credentials/generate`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.CF_TURN_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ttl: 3600 }),
+        });
+        if (minted.ok) {
+          const body = await minted.json();
+          if (Array.isArray(body.iceServers)) iceServers.push(...body.iceServers);
+        }
+      }
+      return json({ iceServers }, 200, origin);
+    }
+    const limit = Number(env.QUOTA || 60);
+    const chargeNow = (id) => quotaCharge(env, id, Date.now(), limit);
     if ((url.pathname === '/queue' || url.pathname === '/gossip') && request.method === 'POST') {
-      const gate = await charge(board, url.searchParams.get('room') || 'himmel', Date.now(), Number(env.QUOTA || 60));
+      const gate = await chargeNow(url.searchParams.get('room') || 'himmel');
       if (!gate.ok) return json({ error: 'rate', count: gate.count }, 429, origin);
     }
     if (url.pathname === '/poll') {
       const room = url.searchParams.get('room') || 'himmel';
       const id = url.searchParams.get('id') || '';
       if (request.method === 'POST') {
-        const gate = await charge(board, id || room, Date.now(), Number(env.QUOTA || 60));
+        const gate = await chargeNow(id || room);
         if (!gate.ok) return json({ error: 'rate', count: gate.count }, 429, origin);
         const body = await request.json();
         await pushMail(board, room, { ...body, id: body.id || id, at: Date.now() });
@@ -59,6 +80,21 @@ export default {
   },
 };
 
+async function quotaCharge(env, id, now, limit) {
+  if (env.ROOMS) {
+    const stub = env.ROOMS.get(env.ROOMS.idFromName('quota'));
+    const response = await stub.fetch('https://quota.internal/quota', {
+      method: 'POST',
+      body: JSON.stringify({ id, now, limit }),
+    });
+    return response.json();
+  }
+  return chargeStorage({
+    async get(key) { return memory.get(key); },
+    async put(key, value) { await memory.set(key, value); },
+  }, id, now, limit);
+}
+
 export class Meeting {
   constructor(state) {
     this.state = state;
@@ -72,6 +108,11 @@ export class Meeting {
 
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname === '/quota' && request.method === 'POST') {
+      const body = await request.json();
+      const gate = await chargeStorage(this.state.storage, body.id || 'all', body.now || Date.now(), body.limit || 60);
+      return Response.json(gate);
+    }
     if (request.headers.get('Upgrade') === 'websocket') {
       const pair = new WebSocketPair();
       const client = pair[0];

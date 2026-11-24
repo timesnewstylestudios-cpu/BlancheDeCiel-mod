@@ -656,7 +656,17 @@ sprite.x = snap(x);
       if (!project.nets[name]) project.nets[name] = createNet(name);
       const kind = String(evalExpr(block.args[1], sprite) || 'dense');
       const units = Math.max(1, Math.floor(toNumber(evalExpr(block.args[2], sprite)) || 1));
-      addLayer(project.nets[name], { type: kind, units, input: units, activation: kind === 'dense' ? 'relu' : 'linear' });
+      const flag = String(block.args[3] ? evalExpr(block.args[3], sprite) : '');
+      const count = Math.max(1, Math.floor(toNumber(block.args[4] ? evalExpr(block.args[4], sprite) : 1) || 1));
+      addLayer(project.nets[name], {
+        type: kind,
+        units,
+        input: units,
+        dim: units,
+        stack: flag === 'stack' ? count : 1,
+        heads: flag === 'heads' ? count : 1,
+        activation: kind === 'dense' ? 'relu' : 'linear',
+      });
     },
     nnopt(thread, block, sprite) {
       const net = (project.nets || {})[String(evalExpr(block.args[0], sprite) || '')];
@@ -852,6 +862,12 @@ sprite.x = snap(x);
     clear3d() {
       project.boxes = [];
       project.spheres = [];
+    },
+    clearscene() {
+      project.drawOps = [{ op: 'penclear' }, { op: 'gfxclear' }];
+      project.boxes = [];
+      project.spheres = [];
+      for (const item of project.sprites) item.bubble = null;
     },
     sphere3d(thread, block, sprite) {
       project.spheres.push({

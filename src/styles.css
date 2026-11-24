@@ -21,7 +21,7 @@ button.primary { background: #2f9e44; color: white; }
 button.stop { background: #e23d3d; color: white; }
 button.active { outline: 3px solid var(--ink); }
 
-.app { min-height: 100dvh; display: flex; flex-direction: column; }
+.app { height: 100dvh; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 header.menubar {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
   padding: 4px 8px; background: var(--header); color: white;
@@ -79,7 +79,24 @@ header input, header select { min-height: 44px; border-radius: 10px; border: 0; 
 .cats button { min-height: 48px; text-align: left; padding: 6px; font-size: 13px; font-weight: 700; color: white; }
 .palette { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 .palette .hint { font-size: 13px; margin: 0; }
-.workspace { position: relative; overflow: scroll; background:
+.workspace, .palette, .cats, .side, .tool {
+  scrollbar-width: auto;
+  scrollbar-color: #4c97ff #d5e2ec;
+}
+.workspace::-webkit-scrollbar, .palette::-webkit-scrollbar, .cats::-webkit-scrollbar, .side::-webkit-scrollbar, .tool::-webkit-scrollbar {
+  width: 18px; height: 18px;
+}
+.workspace::-webkit-scrollbar-thumb, .palette::-webkit-scrollbar-thumb, .side::-webkit-scrollbar-thumb, .tool::-webkit-scrollbar-thumb {
+  background: #4c97ff; border-radius: 9px; border: 3px solid #d5e2ec; min-height: 48px;
+}
+.scroll-pad { position: sticky; top: 8px; float: right; z-index: 4; display: grid; grid-template-columns: 40px 40px; gap: 4px; margin: 8px; }
+.scroll-pad button { min-width: 40px; min-height: 40px; font-size: 18px; background: #fff; }
+html[data-format="touch"] .scroll-pad button { min-width: 52px; min-height: 52px; }
+@media (max-width: 999px) {
+  .workspace::-webkit-scrollbar, .palette::-webkit-scrollbar, .side::-webkit-scrollbar { width: 24px; height: 24px; }
+  .scroll-pad button { min-width: 48px; min-height: 48px; }
+}
+.workspace { position: relative; overflow: scroll; min-height: 0; background:
   linear-gradient(#e1edf6 1px, transparent 1px) 0 0 / 24px 24px,
   linear-gradient(90deg, #e1edf6 1px, transparent 1px) 0 0 / 24px 24px,
   #f7fbfe; min-height: 480px; }
@@ -151,7 +168,7 @@ footer { padding: 6px 12px; background: white; border-top: 1px solid var(--line)
   .app[data-pane="ai"] .stage-mount, .app[data-pane="import"] .stage-mount, .app[data-pane="grid"] .stage-mount,
   .app[data-pane="unix"] .stage-mount, .app[data-pane="backpack"] .stage-mount, .app[data-pane="settings"] .stage-mount, .app[data-pane="help"] .stage-mount { display: none; }
   .cats, .palette { max-height: none; }
-  .workspace { min-height: calc(100dvh - 180px); }
+  .workspace { max-height: calc(100dvh - 180px); min-height: 0; overflow: scroll; }
   .split { display: none; }
   .runbar { width: 100%; }
 }

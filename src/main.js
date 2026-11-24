@@ -28,7 +28,18 @@ const bridge = { ask: async () => '' };
 const input = { mouse: { x: 0, y: 0, down: false }, keys: new Set() };
 const audio = createAudio();
 const extensions = createExtensionHost();
-const gridApi = startBrowserGrid(loadNodeId(randomId), () => iceServers(settings));
+let mintedIce = null;
+const iceRoot = settings.coordinatorUrl || settings.serverUrl;
+if (iceRoot) {
+  try {
+    const response = await fetch(`${String(iceRoot).replace(/\/$/, '')}/ice`);
+    if (response.ok) {
+      const body = await response.json();
+      if (Array.isArray(body.iceServers) && body.iceServers.length) mintedIce = body.iceServers;
+    }
+  } catch { /* the meeting point is optional */ }
+}
+const gridApi = startBrowserGrid(loadNodeId(randomId), () => mintedIce || iceServers(settings));
 
 gridApi.node.onJob((info, from) => {
   const result = evaluateJob(info.rows || [], info.op, info.column);
