@@ -1,7 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { translate } from './i18n.js';
-import { categoryColor, CATEGORY_ORDER } from './palette.js';
+import { CATEGORY_ORDER } from './palette.js';
+import { clampSize, clampZoom, paintFor, THEMES } from './themes.js';
+import { beginLogin } from './oauth.js';
+import featuresDoc from '../docs/funktionen.md?raw';
 import { blocksInCategory, createBlock, labelFor, specByOpcode } from './catalog.js';
 import { applyBdl, errorText, extractBdl } from './bdl.js';
 import { cloneData, createProject, uid } from './model.js';
@@ -70,12 +73,22 @@ export function mount(root, ctx) {
         </div>
       </header>
       <nav class="tabs" id="tabs"></nav>
-      <div class="workspace-row">
+      <div class="workspace-row" id="workspace-row">
         <nav class="cats" id="cats"></nav>
+        <div class="split" data-split="cats" role="separator" aria-orientation="vertical"></div>
         <aside class="palette" id="palette"></aside>
+        <div class="split" data-split="palette" role="separator" aria-orientation="vertical"></div>
         <main class="workspace" id="workspace"></main>
+        <div class="split" data-split="stage" role="separator" aria-orientation="vertical"></div>
         <aside class="side">
+          <div class="stage-tools row">
+            <button type="button" id="stage-small"></button>
+            <button type="button" id="stage-full"></button>
+            <button type="button" id="code-out">−</button>
+            <button type="button" id="code-in">+</button>
+          </div>
           <div class="stage-mount" id="stage-mount"></div>
+          <div class="split split-y" data-split="stageh" role="separator" aria-orientation="horizontal"></div>
           <div class="sprites" id="sprites"></div>
           <div class="tool-tabs" id="tool-tabs"></div>
           <div class="tool" id="tool"></div>
@@ -104,6 +117,23 @@ export function mount(root, ctx) {
   const sprite = () => session.project.sprites.find((item) => item.id === state.spriteId) || session.project.sprites[0];
   const setStatus = (text) => { state.status = text; root.querySelector('#status').textContent = text; };
 
+  function applyLayout() {
+    const layout = settings.layout || {};
+    const row = root.querySelector('#workspace-row');
+    if (!row || !wideQuery.matches) {
+      if (row) row.style.gridTemplateColumns = '';
+      return;
+    }
+    const cats = clampSize(layout.cats, 72, 180);
+    const palette = clampSize(layout.palette, 180, 520);
+    const stage = settings.stageMode === 'small' ? 240 : clampSize(layout.stage, 220, 680);
+    row.style.gridTemplateColumns = `${cats}px 10px ${palette}px 10px minmax(180px,1fr) 10px ${stage}px`;
+    const mount = root.querySelector('#stage-mount');
+    if (mount && settings.stageMode !== 'full') mount.style.height = `${clampSize(layout.stageHeight, 140, 640)}px`;
+    const scripts = root.querySelector('#scripts');
+    if (scripts) scripts.style.zoom = String(clampZoom(settings.codeZoom || 1));
+  }
+
   function labels() {
     root.querySelector('#tagline').textContent = t('tagline');
     root.querySelector('#flag').textContent = t('flag');
@@ -120,6 +150,11 @@ export function mount(root, ctx) {
     select.innerHTML = `<option value="">${esc(t('examples'))}</option>` + Object.entries(names).map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join('');
     select.value = current;
     root.querySelector('#project-name').value = session.project.name || '';
+    const small = root.querySelector('#stage-small');
+    if (small) small.textContent = t('stageSmall');
+    const full = root.querySelector('#stage-full');
+    if (full) full.textContent = t('stageFull');
+    applyLayout();
     const drawSave = root.querySelector('#draw-save');
     if (drawSave) drawSave.textContent = t('drawSave');
     const drawClear = root.querySelector('#draw-clear');
@@ -139,14 +174,14 @@ export function mount(root, ctx) {
 
   function renderCats() {
     root.querySelector('#cats').innerHTML = CATEGORY_ORDER.map((id) => {
-      const color = categoryColor(id);
+      const color = paintFor(settings.theme, id);
       const name = settings.lang === 'en' ? color.en : color.de;
       return `<button type="button" data-category="${id}" style="background:${color.c1}" class="${state.category === id ? 'active' : ''}">${esc(name)}</button>`;
     }).join('');
   }
 
   function renderPalette() {
-    const color = categoryColor(state.category);
+    const color = paintFor(settings.theme, state.category);
     const items = blocksInCategory(state.category).map((spec) => {
       const made = createBlock(spec.opcode);
       return `<div class="block ${spec.type}" data-opcode="${spec.opcode}" style="background:${color.c1}">${renderLabel(labelFor(spec, settings.lang), made, spec, '', '')}</div>`;
@@ -211,7 +246,7 @@ export function mount(root, ctx) {
       return `<article class="block command ${selected ? 'selected' : ''}" data-script="${esc(scriptId)}" data-route="${esc(route)}" style="background:${info?.color || '#5B4B8A'}"><div class="rowline">${renderLabel(text, fake, spec, scriptId, route)}</div></article>`;
     }
     const spec = specByOpcode(block.opcode);
-    const color = categoryColor(spec?.cat || 'control');
+    const color = paintFor(settings.theme, spec?.cat || 'control');
     const selected = state.selection && state.selection.scriptId === scriptId && state.selection.route === route;
     const label = spec ? renderLabel(labelFor(spec, settings.lang), block, spec, scriptId, route) : esc(block.opcode);
     let mouth = '';
@@ -284,7 +319,14 @@ export function mount(root, ctx) {
         <pre class="out" id="table-view"></pre>
       </section>
       <section data-tool-panel="settings">
-        <label>${esc(t('apiKey'))}<input id="api-key" type="password" autocomplete="off"></label>
+        <label>${esc(t('apiKey'))}<input id="api-key" type="password" autocomplete="off" spellcheck="false"></label>
+        <label class="row"><input id="remember-key" type="checkbox"> ${esc(t('rememberKey'))}</label>
+        <p class="note">${esc(t('rememberWarn'))}</p>
+        <p id="x-user"></p>
+        <label>${esc(t('proxyUrl'))}<input id="proxy-url" type="text" spellcheck="false"></label>
+        <label>${esc(t('xClient'))}<input id="x-client" type="text" spellcheck="false"></label>
+        <button type="button" id="x-login">${esc(t('xLogin'))}</button>
+        <label>${esc(t('theme'))}<select id="theme">${Object.entries(THEMES).map(([id, item]) => `<option value="${id}">${esc(settings.lang === 'en' ? item.en : item.de)}</option>`).join('')}</select></label>
         <label>${esc(t('model'))}<input id="api-model" type="text"></label>
         <label>${esc(t('baseUrl'))}<input id="api-base" type="text"></label>
         <label>${esc(t('tracker'))}<input id="tracker-setting" type="text"></label>
@@ -300,7 +342,17 @@ export function mount(root, ctx) {
         <p>${esc(t('helpIntro'))}</p>
         <div id="help-body"></div>
       </section>`;
-    root.querySelector('#api-key').value = settings.apiKey;
+    root.querySelector('#api-key').value = settings.apiKey || '';
+    const remember = root.querySelector('#remember-key');
+    if (remember) remember.checked = !!settings.rememberKey;
+    const proxy = root.querySelector('#proxy-url');
+    if (proxy) proxy.value = settings.proxyUrl || '';
+    const client = root.querySelector('#x-client');
+    if (client) client.value = settings.xClientId || '';
+    const who = root.querySelector('#x-user');
+    if (who) who.textContent = settings.xUser ? `@${settings.xUser}` : '';
+    const theme = root.querySelector('#theme');
+    if (theme) theme.value = settings.theme || 'light';
     root.querySelector('#api-model').value = settings.model;
     root.querySelector('#api-base').value = settings.baseUrl;
     const tracker = root.querySelector('#tracker');
@@ -321,11 +373,11 @@ export function mount(root, ctx) {
     const body = root.querySelector('#help-body');
     if (!body) return;
     body.innerHTML = CATEGORY_ORDER.map((id) => {
-      const color = categoryColor(id);
+      const color = paintFor(settings.theme, id);
       const title = settings.lang === 'en' ? color.en : color.de;
       const lines = blocksInCategory(id).map((spec) => `<li><code>${esc(spec.opcode)}</code> — ${esc(labelFor(spec, settings.lang))}</li>`).join('');
       return `<h3 style="color:${color.c3}">${esc(title)}</h3><ul>${lines}</ul>`;
-    }).join('') + `<h3>${esc(t('dsl'))}</h3><pre class="out">${esc(bdlDoc)}</pre>`;
+    }).join('') + `<h3>${esc(t('features'))}</h3><pre class="out">${esc(featuresDoc)}</pre><h3>${esc(t('dsl'))}</h3><pre class="out">${esc(bdlDoc)}</pre>`;
   }
 
   function refresh() {
@@ -354,6 +406,7 @@ export function mount(root, ctx) {
     const box = root.querySelector('#ai-blocks');
     if (box) box.checked = !!session.project.aiBlocksEnabled;
     renderHelp();
+    applyLayout();
   }
 
   function insertMade(made, spec) {
@@ -758,15 +811,12 @@ export function mount(root, ctx) {
   function wireTools() {
     root.querySelector('#ai-send').onclick = async () => {
       const status = root.querySelector('#ai-status');
-      if (!settings.apiKey) { status.textContent = t('aiKeyMissing'); state.tool = 'settings'; refresh(); return; }
+      if (!settings.apiKey && !(settings.proxyUrl && settings.xToken)) { status.textContent = t('aiKeyMissing'); state.tool = 'settings'; refresh(); return; }
       const request = root.querySelector('#ai-request').value;
       const messages = buildAiMessages(session.project, request);
       status.textContent = t('aiSending');
       try {
-        const result = await chatComplete({
-          baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model,
-          system: messages.system, user: messages.user,
-        });
+        const result = await ctx.sendChat(messages.system, messages.user);
         const bdl = extractBdl(result.content);
         root.querySelector('#ai-output').value = bdl;
         const applied = applyBdl(session.project, bdl);
@@ -850,11 +900,25 @@ export function mount(root, ctx) {
     };
     const persistSettings = () => {
       settings.apiKey = root.querySelector('#api-key').value;
+      settings.rememberKey = !!root.querySelector('#remember-key')?.checked;
       settings.model = root.querySelector('#api-model').value.trim() || 'grok-4.7';
       settings.baseUrl = root.querySelector('#api-base').value.trim() || 'https://api.x.ai/v1';
+      settings.proxyUrl = root.querySelector('#proxy-url')?.value.trim() || '';
+      settings.xClientId = root.querySelector('#x-client')?.value.trim() || '';
+      settings.theme = root.querySelector('#theme')?.value || 'light';
+      document.documentElement.dataset.theme = settings.theme;
       saveSettings(settings);
+      refresh();
     };
     root.querySelector('#api-key').onchange = persistSettings;
+    root.querySelector('#remember-key').onchange = persistSettings;
+    root.querySelector('#proxy-url').onchange = persistSettings;
+    root.querySelector('#x-client').onchange = persistSettings;
+    root.querySelector('#theme').onchange = persistSettings;
+    root.querySelector('#x-login').onclick = () => {
+      if (!settings.xClientId || !settings.proxyUrl) { setStatus(t('proxyUrl')); return; }
+      beginLogin(settings.xClientId);
+    };
     root.querySelector('#api-model').onchange = persistSettings;
     root.querySelector('#api-base').onchange = persistSettings;
     root.querySelector('#ai-blocks').onchange = (event) => {
@@ -965,6 +1029,68 @@ export function mount(root, ctx) {
     });
     root.querySelector('#draw').hidden = true;
   };
+
+  ctx.bridge.sample = (x, y) => stageView.sample(x, y);
+  root.querySelector('#stage-small').onclick = () => {
+    settings.stageMode = settings.stageMode === 'small' ? 'normal' : 'small';
+    saveSettings(settings);
+    applyLayout();
+  };
+  root.querySelector('#stage-full').onclick = () => {
+    const mount = root.querySelector('#stage-mount');
+    if (!document.fullscreenElement) mount.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  };
+  const setZoom = (next) => {
+    settings.codeZoom = clampZoom(next);
+    saveSettings(settings);
+    applyLayout();
+  };
+  root.querySelector('#code-in').onclick = () => setZoom((settings.codeZoom || 1) + 0.1);
+  root.querySelector('#code-out').onclick = () => setZoom((settings.codeZoom || 1) - 0.1);
+  root.querySelector('#workspace').addEventListener('wheel', (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    setZoom((settings.codeZoom || 1) * (event.deltaY < 0 ? 1.05 : 0.95));
+  }, { passive: false });
+  const pointers = new Map();
+  root.querySelector('#workspace').addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch') pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  });
+  root.querySelector('#workspace').addEventListener('pointermove', (event) => {
+    if (!pointers.has(event.pointerId) || pointers.size < 2) return;
+    const previous = [...pointers.values()];
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const next = [...pointers.values()];
+    const before = Math.hypot(previous[0].x - previous[1].x, previous[0].y - previous[1].y);
+    const after = Math.hypot(next[0].x - next[1].x, next[0].y - next[1].y);
+    if (before > 0) setZoom((settings.codeZoom || 1) * (after / before));
+  });
+  root.querySelector('#workspace').addEventListener('pointerup', (event) => pointers.delete(event.pointerId));
+  root.querySelector('#workspace').addEventListener('pointercancel', (event) => pointers.delete(event.pointerId));
+  root.querySelectorAll('.split').forEach((bar) => {
+    bar.addEventListener('pointerdown', (event) => {
+      bar.setPointerCapture(event.pointerId);
+      const start = { x: event.clientX, y: event.clientY, layout: { ...(settings.layout || {}) } };
+      const move = (ev) => {
+        const dx = ev.clientX - start.x;
+        const dy = ev.clientY - start.y;
+        const key = bar.dataset.split;
+        if (key === 'cats') settings.layout.cats = clampSize(start.layout.cats + dx, 72, 180);
+        if (key === 'palette') settings.layout.palette = clampSize(start.layout.palette + dx, 180, 520);
+        if (key === 'stage') settings.layout.stage = clampSize(start.layout.stage - dx, 220, 680);
+        if (key === 'stageh') settings.layout.stageHeight = clampSize((start.layout.stageHeight || 280) + dy, 140, 640);
+        applyLayout();
+      };
+      const up = () => {
+        bar.removeEventListener('pointermove', move);
+        bar.removeEventListener('pointerup', up);
+        saveSettings(settings);
+      };
+      bar.addEventListener('pointermove', move);
+      bar.addEventListener('pointerup', up);
+    });
+  });
 
   ctx.bridge.ask = (question) => new Promise((resolve) => {
     askResolve = resolve;

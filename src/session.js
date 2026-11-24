@@ -1,23 +1,36 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { cloneData, createProject } from './model.js';
+import { mergeSettings, splitSettings } from './secrets.js';
 
 const SETTINGS_KEY = 'bdc.settings.v1';
 const PROJECT_KEY = 'bdc.project.v1';
 const NODE_KEY = 'bdc.nodeId';
 
+const SESSION_KEY = 'bdc.session.v1';
+
 export const defaultSettings = {
   lang: 'de',
   apiKey: '',
+  rememberKey: false,
   model: 'grok-4.7',
   baseUrl: 'https://api.x.ai/v1',
   trackerUrl: '',
+  proxyUrl: '',
+  xClientId: '',
+  xToken: '',
+  xUser: '',
+  theme: 'light',
+  codeZoom: 1,
+  stageMode: 'normal',
+  layout: { cats: 112, palette: 280, stage: 380, stageHeight: 280 },
 };
 
 export function loadSettings() {
   try {
-    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    return { ...defaultSettings, ...stored, apiKey: typeof stored.apiKey === 'string' ? stored.apiKey : '' };
+    const disk = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || '{}');
+    return mergeSettings(defaultSettings, disk, session);
   } catch {
     return { ...defaultSettings };
   }
@@ -25,14 +38,17 @@ export function loadSettings() {
 
 export function saveSettings(settings) {
   const next = {
+    ...defaultSettings,
+    ...settings,
     lang: settings.lang === 'en' ? 'en' : 'de',
-    apiKey: settings.apiKey || '',
     model: settings.model || defaultSettings.model,
     baseUrl: settings.baseUrl || defaultSettings.baseUrl,
-    trackerUrl: settings.trackerUrl || '',
+    theme: settings.theme || 'light',
   };
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
-  return next;
+  const parts = splitSettings(next);
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(parts.disk));
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(parts.session));
+  return mergeSettings(defaultSettings, parts.disk, parts.session);
 }
 
 export function loadNodeId(makeId) {

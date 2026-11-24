@@ -1,0 +1,10 @@
+name = "blanche-de-ciel-proxy"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+ALLOWED_ORIGIN = "*"
+RATE_LIMIT = "20"
+# X_CLIENT_ID can live here for a public PKCE app. Leave X_CLIENT_SECRET unset unless X forces a confidential client.
+# XAI_API_KEY must be a secret: wrangler secret put XAI_API_KEY
+# Optional confidential client: wrangler secret put X_CLIENT_SECRET

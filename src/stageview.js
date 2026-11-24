@@ -109,10 +109,10 @@ export function createStageView(root) {
     if ((project.boxes || []).length || (project.spheres || []).length) drawFloor(v, camera);
     drawBoxes(v, project.boxes, camera);
     drawSpheres(v, project.spheres, camera);
-    for (const sprite of project.sprites) {
-      if (sprite.isStage || sprite.visible === false) continue;
-      drawSprite(v, sprite, sprite.id === selectedId);
-    }
+    const ordered = project.sprites.filter((sprite) => !sprite.isStage && sprite.visible !== false)
+      .slice()
+      .sort((a, b) => (a.layerOrder || 1) - (b.layerOrder || 1));
+    for (const sprite of ordered) drawSprite(v, sprite, sprite.id === selectedId);
     if (project.shader && project.shader !== 'none') {
       const shaded = gl && gl.draw(view, project.shader, now / 1000);
       glCanvas.style.visibility = shaded ? 'visible' : 'hidden';
@@ -140,6 +140,16 @@ export function createStageView(root) {
 
   return {
     view,
+    sample(scratchX, scratchY) {
+      const point = scratchToCanvas(scratchX, scratchY);
+      const pixel = view.getContext('2d').getImageData(
+        Math.max(0, Math.min(STAGE_W - 1, Math.round(point.x))),
+        Math.max(0, Math.min(STAGE_H - 1, Math.round(point.y))),
+        1,
+        1,
+      ).data;
+      return { r: pixel[0], g: pixel[1], b: pixel[2] };
+    },
     paint,
     localScratch,
     pointerDown(event, project) {

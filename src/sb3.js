@@ -36,12 +36,17 @@ const COMMANDS = {
   looks_nextcostume: ['nextcostume', []],
   looks_switchcostumeto: ['switchcostume', ['COSTUME']],
   looks_cleargraphiceffects: ['ghost', []],
+  looks_gotofrontback: ['front', []],
+  looks_goforwardbackwardlayers: ['changelayer', ['NUM']],
+  looks_switchbackdropto: ['switchbackdrop', ['BACKDROP']],
+  looks_nextbackdrop: ['nextbackdrop', []],
+  looks_backdropnumbername: ['backdrop', []],
   event_whenflagclicked: ['whenflag', []],
   event_whenkeypressed: ['whenkey', []],
   event_whenthisspriteclicked: ['whenclick', []],
   event_whenbroadcastreceived: ['whenreceive', []],
   event_broadcast: ['broadcast', ['BROADCAST_INPUT']],
-  event_broadcastandwait: ['broadcast', ['BROADCAST_INPUT']],
+  event_broadcastandwait: ['broadcastwait', ['BROADCAST_INPUT']],
   control_wait: ['wait', ['DURATION']],
   control_repeat: ['repeat', ['TIMES']],
   control_forever: ['forever', []],
@@ -65,6 +70,10 @@ const COMMANDS = {
   sensing_distanceto: ['distance', []],
   sensing_current: ['current', []],
   sensing_loudness: ['volume', []],
+  sensing_touchingcolor: ['touchcolor', ['COLOR']],
+  sensing_coloristouchingcolor: ['colortouch', ['COLOR', 'COLOR2']],
+  sensing_dayssince2000: ['days2000', []],
+  sensing_username: ['username', []],
   operator_add: ['add', ['NUM1', 'NUM2']],
   operator_subtract: ['sub', ['NUM1', 'NUM2']],
   operator_multiply: ['mul', ['NUM1', 'NUM2']],
@@ -87,6 +96,9 @@ const COMMANDS = {
   pen_clear: ['penclear', []],
   pen_setPenColorToColor: ['pencolor', ['COLOR']],
   pen_setPenSizeTo: ['pensize', ['SIZE']],
+  pen_changePenSizeBy: ['changepen', ['SIZE']],
+  pen_setPenColorParamTo: ['sethue', ['VALUE']],
+  pen_changePenColorParamBy: ['changehue', ['VALUE']],
   pen_stamp: ['stamp', []],
 };
 
@@ -293,6 +305,9 @@ export function importProjectJson(json, files = {}, warnings = []) {
       if (opcode === 'current') args.push({ kind: 'str', value: menuName(sb.fields?.CURRENTMENU?.[0]) });
       if (opcode === 'ghost' && !args.length) args.push({ kind: 'num', value: 0 });
       if (opcode === 'switchcostume' && !args.length && sb.fields?.COSTUME) args.push({ kind: 'str', value: String(sb.fields.COSTUME[0]) });
+      if (opcode === 'front' && String(sb.fields?.FRONT_BACK?.[0] || '').toLowerCase().includes('back')) {
+        return block('back', []);
+      }
       const body = sb.inputs?.SUBSTACK ? chain(sb.inputs.SUBSTACK[1]) : null;
       const elseBody = sb.inputs?.SUBSTACK2 ? chain(sb.inputs.SUBSTACK2[1]) : null;
       const made = block(opcode, args, {
