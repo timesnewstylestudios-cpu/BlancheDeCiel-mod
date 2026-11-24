@@ -5,6 +5,7 @@
  */
 
 import { decodeMatrix, encodeMatrix } from './weights.js';
+import { conv1d, conv2d } from './conv.js';
 
 const MAX = 128;
 
@@ -95,34 +96,18 @@ function denseForward(layer, input) {
 
 function conv1dForward(layer, input) {
   const kernel = layer.w[0];
-  const out = [];
-  const width = Math.max(0, input.length - kernel.length + 1);
-  for (let index = 0; index < width; index += 1) {
-    let sum = layer.b[0] || 0;
-    for (let k = 0; k < kernel.length; k += 1) sum += kernel[k] * input[index + k];
-    out.push(activate(layer.activation, sum));
-  }
+  const bias = layer.b[0] || 0;
+  const out = conv1d(input, kernel).map((value) => activate(layer.activation, value + bias));
   return { out, input: input.slice() };
 }
 
 function conv2dForward(layer, input) {
   const side = Math.max(1, Math.round(Math.sqrt(input.length)));
   const k = layer.kernel;
-  const kernel = layer.w[0];
-  const out = [];
-  for (let y = 0; y <= side - k; y += 1) {
-    for (let x = 0; x <= side - k; x += 1) {
-      let sum = layer.b[0] || 0;
-      let cursor = 0;
-      for (let ky = 0; ky < k; ky += 1) {
-        for (let kx = 0; kx < k; kx += 1) {
-          sum += kernel[cursor] * (input[(y + ky) * side + (x + kx)] || 0);
-          cursor += 1;
-        }
-      }
-      out.push(activate(layer.activation, sum));
-    }
-  }
+  const bias = layer.b[0] || 0;
+  const padded = input.slice();
+  while (padded.length < side * side) padded.push(0);
+  const out = conv2d(padded, side, layer.w[0], k).map((value) => activate(layer.activation, value + bias));
   return { out, input: input.slice() };
 }
 

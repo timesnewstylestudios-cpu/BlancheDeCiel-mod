@@ -20,6 +20,7 @@ export const defaultSettings = {
   theme: 'light',
   format: 'classic',
   blockStyle: 'normal',
+  density: 'normal',
   codeZoom: 1,
   stageZoom: 1,
   stageMode: 'normal',

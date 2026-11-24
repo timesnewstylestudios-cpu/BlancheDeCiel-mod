@@ -1,11 +1,21 @@
 # Nächste Aufgaben
 
-- [ ] Pixelgenaue Kostümkollision für Farbberührung
-- [ ] Gestapeltes LSTM und Attention mit mehreren Köpfen
-- [ ] WebGPU für Faltung, nicht nur für dichte Matrizen
-- [ ] Großes vortrainiertes Sprachmodell im Browser
-- [ ] TURN-Server mitliefern, statt nur Zugangsdaten
-- [ ] Globales Kontingent ohne extra KV-Binding
+Jede Zeile sagt, was der Punkt tut und was er danach ermöglicht.
+
+- [x] Pixelgenaue Kostümkollision für Farbberührung. Die Figur prüft ihre gezeichneten Pixel, nicht nur einen Punkt. Damit erkennen Programme Berührung von Farbe, Farbe-an-Farbe und einer anderen Figur.
+- [x] WebGPU für Faltung. conv1d, conv2d und conv3d laufen als Shader, sonst auf der CPU. Damit kann ein Netz lokale Muster rechnen, nicht nur eine dichte Schicht.
+- [ ] Gestapeltes LSTM und Attention mit mehreren Köpfen. Mehrere Zellen und Köpfe hintereinander. Damit merkt sich ein Netz längere Folgen und mehrere Bezüge gleichzeitig.
+- [ ] Großes vortrainiertes Sprachmodell im Browser. Ein fertiges Modell statt des kleinen Block-Netzes. Damit werden freie Sätze zu Blöcken, ohne einen Server.
+- [ ] TURN-Server mitliefern, statt nur Zugangsdaten. Ein eingebauter Vermittler für WebRTC. Damit finden sich Telefone hinter strengen Netzen ohne eigene Einrichtung.
+- [ ] Globales Kontingent ohne extra KV-Binding. Ein Zähler, der ohne Extra-Speicher über alle Server-Kopien gilt. Damit bleibt das Limit auch ohne Cloudflare-KV ehrlich.
+
+# Danach möglich
+
+- [ ] WebGPU-Pooling. Nachbarschaft eines Feldes zu einem Wert zusammenfassen. Damit werden Faltungsnetze kleiner und robuster gegen kleine Verschiebungen.
+- [ ] WebGPU-Normalisierung. Eine Schicht auf einen festen Wertebereich bringen. Damit bleibt das Lernen stabil, wenn viele Schichten hintereinander liegen.
+- [ ] Training auf der GPU. Die Gewichte auf der Grafikkarte nachziehen, nicht nur vorwärts rechnen. Damit werden größere Netze im Unterricht in zumutbarer Zeit fertig.
+- [ ] Kollision auf der GPU. Die Pixelmasken im Shader vergleichen. Damit bleiben viele Figuren gleichzeitig flüssig prüfbar.
+- [ ] Blockly als Zeichenfläche. Die originale Scratch-Blockbibliothek einsetzen. Damit wären Einrastpunkte und Barrierefreiheit identisch mit Scratch, der jetzige Laufzeitkern müsste aber weichen. scratch-blocks braucht den alten Closure-Bau und passt nicht in diesen Vite-Build.
 
 # Markdown-Dateien
 

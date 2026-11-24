@@ -215,7 +215,11 @@ export function createRuntime(project, services = {}) {
       case 'distance': return Math.hypot(sprite.x - input.mouse.x, sprite.y - input.mouse.y);
       case 'costume': return (sprite.costumeIndex || 0) + 1;
       case 'current': return currentValue(String(v[0] ?? 'second'));
-      case 'touchcolor': return nearColor(sample(sprite.x, sprite.y), parseHex(v[0]));
+      case 'touchcolor': {
+        const exactColor = services.touchColor?.(sprite, String(v[0] || ''));
+        if (typeof exactColor === 'boolean') return exactColor;
+        return nearColor(sample(sprite.x, sprite.y), parseHex(v[0]));
+      }
       case 'colortouch': return colorTouching(sprite, v[0], v[1]);
       case 'days2000': return (now() - Date.UTC(2000, 0, 1)) / 86400000;
       case 'username': return userName();
@@ -309,13 +313,23 @@ sprite.x = snap(x);
   }
 
   function touching(sprite, what) {
-    if (what === 'mouse') return Math.hypot(sprite.x - input.mouse.x, sprite.y - input.mouse.y) < 28 * ((sprite.size || 100) / 100);
+    const name = String(what || 'edge');
+    if (name === 'mouse' || name === '_mouse_') return Math.hypot(sprite.x - input.mouse.x, sprite.y - input.mouse.y) < 28 * ((sprite.size || 100) / 100);
+    if (name !== 'edge' && name !== '_edge_') {
+      const other = project.sprites.find((item) => item !== sprite && !item.isStage && item.name === name);
+      if (!other) return false;
+      const exact = services.overlap?.(sprite, other);
+      if (typeof exact === 'boolean') return exact;
+      return Math.hypot(sprite.x - other.x, sprite.y - other.y) < 28 * ((sprite.size || 100) / 100 + (other.size || 100) / 100);
+    }
     const limitX = 240 - 12 * ((sprite.size || 100) / 100);
     const limitY = 180 - 12 * ((sprite.size || 100) / 100);
     return Math.abs(sprite.x) > limitX || Math.abs(sprite.y) > limitY;
   }
 
   function colorTouching(sprite, mine, other) {
+    const exactColors = services.colorTouch?.(sprite, String(mine || ''), String(other || ''));
+    if (typeof exactColors === 'boolean') return exactColors;
     if (!nearColor(parseHex(sprite.penColor), parseHex(mine))) return false;
     const offsets = [[12, 0], [-12, 0], [0, 12], [0, -12]];
     return offsets.some(([dx, dy]) => nearColor(sample(sprite.x + dx, sprite.y + dy), parseHex(other)));

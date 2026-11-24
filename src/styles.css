@@ -45,7 +45,13 @@ header.menubar {
 #tour[hidden] { display: none; }
 html[data-format="focus"] .side, html[data-format="focus"] .split[data-split="stage"] { display: none; }
 html[data-format="compact"] .cats button { min-height: 40px; font-size: 12px; }
-html[data-format="touch"] button, html[data-format="touch"] .block { min-height: 52px; }
+html[data-format="touch"] button, html[data-format="touch"] .block { min-height: 48px; font-size: 15px; }
+html[data-density="compact"] .block { min-height: 22px; padding: 1px 6px; font-size: 12px; margin: 0; max-width: 260px; }
+#insert-mark { position: fixed; z-index: 25; height: 4px; border-radius: 2px; background: #fff; box-shadow: 0 0 0 2px #16324f; pointer-events: none; }
+#insert-mark[hidden] { display: none; }
+#ghost { position: fixed; z-index: 24; pointer-events: none; opacity: .85; max-width: 240px; }
+#minimap { position: sticky; top: 8px; float: right; margin: 8px; background: rgba(255,255,255,.85); border: 1px solid var(--line); border-radius: 8px; }
+.drop-hint { display: block; min-height: 10px; }
 html[data-blocks="flat"] .block { box-shadow: none; border-radius: 6px; }
 html[data-blocks="contrast"] .block { outline: 2px solid #000; color: #000; }
 .app:not(.tool-open) .tool { display: none; }
@@ -73,19 +79,20 @@ header input, header select { min-height: 44px; border-radius: 10px; border: 0; 
 .cats button { min-height: 48px; text-align: left; padding: 6px; font-size: 13px; font-weight: 700; color: white; }
 .palette { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 .palette .hint { font-size: 13px; margin: 0; }
-.workspace { position: relative; overflow: auto; background:
+.workspace { position: relative; overflow: scroll; background:
   linear-gradient(#e1edf6 1px, transparent 1px) 0 0 / 24px 24px,
   linear-gradient(90deg, #e1edf6 1px, transparent 1px) 0 0 / 24px 24px,
   #f7fbfe; min-height: 480px; }
-.scripts { position: relative; min-height: 720px; min-width: 640px; }
+.scripts { position: relative; width: 2400px; height: 1800px; min-height: 1800px; min-width: 2400px; }
 .script-card { position: absolute; }
 .script-card header { font-size: 12px; cursor: grab; padding: 2px 6px; }
 
 .block {
-  display: flex; flex-direction: column; gap: 4px;
-  color: white; border-radius: 12px; padding: 8px 10px;
-  margin: 4px 0; min-height: 44px; max-width: 420px;
-  box-shadow: inset 0 -3px 0 rgba(0,0,0,.18);
+  display: flex; flex-direction: column; gap: 2px;
+  color: white; border-radius: 8px; padding: 3px 8px;
+  margin: 2px 0; min-height: 30px; max-width: 320px;
+  font-size: 13px;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.18);
   touch-action: none;
 }
 .block.hat { border-radius: 18px 18px 12px 12px; }
