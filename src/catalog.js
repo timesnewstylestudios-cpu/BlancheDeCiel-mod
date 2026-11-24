@@ -161,6 +161,7 @@ export const BLOCKS = [
   spec('cam', 'graphics', 'command', 'setze Kamera x %1 y %2 z %3', 'set camera x %1 y %2 z %3', [n(0), n(0), n(280)]),
   spec('rot3d', 'graphics', 'command', 'drehe Kamera Gier %1 Nick %2', 'rotate camera yaw %1 pitch %2', [n(30), n(20)]),
   spec('clear3d', 'graphics', 'command', 'lösche 3D-Szene', 'clear 3D scene'),
+  spec('clearscene', 'graphics', 'command', 'lösche die ganze Szene', 'clear the whole scene'),
 
   spec('row', 'grid', 'command', 'neue Zeile in %1 mit %2', 'new row in %1 with %2', [s('mess'), n(0)]),
   spec('setcell', 'grid', 'command', 'setze Zelle von %1 Zeile %2 Spalte %3 auf %4', 'set cell of %1 row %2 column %3 to %4', [s('mess'), n(1), n(1), n(0)]),
@@ -178,7 +179,7 @@ export const BLOCKS = [
   spec('learnseq', 'ai', 'command', 'lerne von %1 nach %2', 'learn from %1 to %2', [s('move'), s('say')]),
 
   spec('nnnew', 'neural', 'command', 'neues Netz %1 Eingabe %2 verborgen %3 Ausgabe %4', 'new net %1 input %2 hidden %3 output %4', [s('netz'), n(2), n(4), n(1)]),
-  spec('nnlayer', 'neural', 'command', 'Schicht %1 Art %2 Größe %3', 'layer %1 type %2 size %3', [s('netz'), menu('dense', ['dense', 'conv1d', 'conv2d', 'rnn', 'lstm', 'attention']), n(4)]),
+  spec('nnlayer', 'neural', 'command', 'Schicht %1 Art %2 Größe %3 %4 %5', 'layer %1 type %2 size %3 %4 %5', [s('netz'), menu('dense', ['dense', 'conv1d', 'conv2d', 'rnn', 'lstm', 'attention', 'pool', 'norm']), n(4), { ...s(''), optional: true }, { ...n(1), optional: true }]),
   spec('nnopt', 'neural', 'command', 'setze Optimierer von %1 auf %2 Schritt %3', 'set optimizer of %1 to %2 step %3', [s('netz'), menu('sgd', ['sgd', 'adam']), n(0.05)]),
   spec('nntrain', 'neural', 'command', 'trainiere %1 mit %2 auf %3', 'train %1 on %2 toward %3', [s('netz'), s('0,1'), s('1')]),
   spec('nnpredict', 'neural', 'reporter', 'Vorhersage von %1 für %2', 'prediction of %1 for %2', [s('netz'), s('0,1')]),

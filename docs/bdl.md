@@ -31,7 +31,7 @@ list namen "Ada" "Ben"
 clear-scripts
 ```
 
-`tables-reset`, `clear3d` und `clear-scripts` ersetzen vorhandenen Zustand. Wer nur etwas ergänzen will, lässt sie weg.
+`tables-reset`, `clear3d`, `clearscene` und `clear-scripts` ersetzen vorhandenen Zustand. `clearscene` (deutsch `szeneleeren`) löscht Stift, Formen, Stempel, Sprechblasen und 3D. Wer nur etwas ergänzen will, lässt sie weg. `nnlayer netz lstm 8 stack 2` stapelt zwei LSTM-Zellen. `nnlayer netz attention 4 heads 2` nutzt zwei Köpfe.
 
 `table` hängt eine Zeile an. Zahlen bleiben Zahlen, Wörter werden Text. In einem Skript heißt derselbe Vorgang `row`.
 
@@ -111,7 +111,7 @@ Blöcke `aiprompt` rufen das lokale Netz nur, wenn in den Einstellungen „KI-Bl
 
 ## Token
 
-`sprite` `pos` `dir` `shown` `scale` `pen` `var` `list` `script` `end` `else` `define` `clear-scripts` `cleartable` `table` `tables-reset` `edit` `replace` `insert` `delete` `delscript` `title` `tempo` `when` `flag` `key` `click` `receive` `move` `turn` `turnl` `goto` `setx` `changex` `sety` `changey` `point` `say` `think` `show` `hide` `setsize` `changesize` `broadcast` `wait` `repeat` `forever` `if` `repeatuntil` `call` `ask` `resettimer` `set` `change` `push` `remove` `clearlist` `pendown` `penup` `penclear` `pencolor` `pensize` `stamp` `tone` `note` `wave` `filter` `adsr` `recstart` `recstop` `recplay` `playsnd` `rect` `oval` `line` `gfxclear` `layer` `shader` `box3d` `cam` `rot3d` `clear3d` `row` `setcell` `share` `fetch` `job` `btping` `aiprompt` `comment` `log` `decomp` `ext` `x` `y` `size` `answer` `timer` `mousex` `mousey` `mousedown` `keydown` `add` `sub` `mul` `div` `mod` `round` `rand` `join` `strlen` `letter` `gt` `lt` `eq` `and` `or` `not` `item` `len` `has` `volume` `fft` `cell` `jobresult` `peers` `bt`
+`sprite` `pos` `dir` `shown` `scale` `pen` `var` `list` `script` `end` `else` `define` `clear-scripts` `cleartable` `table` `tables-reset` `edit` `replace` `insert` `delete` `delscript` `title` `tempo` `when` `flag` `key` `click` `receive` `move` `turn` `turnl` `goto` `setx` `changex` `sety` `changey` `point` `say` `think` `show` `hide` `setsize` `changesize` `broadcast` `wait` `repeat` `forever` `if` `repeatuntil` `call` `ask` `resettimer` `set` `change` `push` `remove` `clearlist` `pendown` `penup` `penclear` `pencolor` `pensize` `stamp` `tone` `note` `wave` `filter` `adsr` `recstart` `recstop` `recplay` `playsnd` `rect` `oval` `line` `gfxclear` `layer` `shader` `box3d` `cam` `rot3d` `clear3d` `clearscene` `row` `setcell` `share` `fetch` `job` `btping` `aiprompt` `comment` `log` `decomp` `ext` `x` `y` `size` `answer` `timer` `mousex` `mousey` `mousedown` `keydown` `add` `sub` `mul` `div` `mod` `round` `rand` `join` `strlen` `letter` `gt` `lt` `eq` `and` `or` `not` `item` `len` `has` `volume` `fft` `cell` `jobresult` `peers` `bt`
 
 Erweiterungen, die du lädst, rufst du mit `ext <id> <opcode> <argumente…>` auf.
 

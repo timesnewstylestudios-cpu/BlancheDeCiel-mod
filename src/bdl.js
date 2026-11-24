@@ -260,6 +260,7 @@ export function parseBdl(source) {
     camera: null,
     rotation: null,
     reset3d: false,
+    resetScene: false,
     boxes: [],
     resetTables: false,
     tableClears: [],
@@ -299,7 +300,8 @@ export function parseBdl(source) {
       fail(line, codeError('bad-token'));
       return;
     }
-    const op = tokens[0].value;
+    let op = tokens[0].value;
+      if (op === 'szeneleeren') op = 'clearscene';
     try {
       if (op === 'end') {
         if (!stack.length) fail(line, codeError('end-without-start'));
@@ -349,6 +351,11 @@ export function parseBdl(source) {
         const exprs = parseExprs(tokens.slice(1));
         if (exprs.length < 1) throw codeError('arity');
         file.tableRows.push({ name: asText(exprs[0]), cells: exprs.slice(1).map(constEval) });
+        return;
+      }
+      if (!inside() && op === 'clearscene') {
+        file.resetScene = true;
+        file.reset3d = true;
         return;
       }
       if (!inside() && (op === 'shader' || op === 'cam' || op === 'rot3d' || op === 'box3d' || op === 'clear3d')) {
@@ -532,6 +539,12 @@ function applyParsed(project, file) {
     project.boxes = [];
     project.spheres = [];
   }
+  if (file.resetScene) {
+    project.drawOps = [];
+    project.boxes = [];
+    project.spheres = [];
+    for (const sprite of project.sprites) sprite.bubble = null;
+  }
   if (file.camera) {
     project.camera.x = file.camera.x;
     project.camera.y = file.camera.y;
@@ -704,6 +717,7 @@ export function projectToBdl(project, options = {}) {
     lines.push(`shader ${formatWord(project.shader || 'none')}`);
     lines.push(`cam ${formatNumber(project.camera?.x || 0)} ${formatNumber(project.camera?.y || 0)} ${formatNumber(project.camera?.z || 280)}`);
     lines.push(`rot3d ${formatNumber(project.camera?.yaw ?? 30)} ${formatNumber(project.camera?.pitch ?? 20)}`);
+    lines.push('clearscene');
     lines.push('clear3d');
     for (const box of project.boxes || []) {
       lines.push(`box3d ${formatNumber(box.x)} ${formatNumber(box.y)} ${formatNumber(box.z)} ${formatNumber(box.size)}`);

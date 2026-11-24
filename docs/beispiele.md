@@ -35,6 +35,16 @@ setitem 1 band 3
 
 Lokales Netz: Block `suggest`, dann „Übernehmen“. `learnseq move say` merkt sich diesen Übergang. „Reihenfolge merken“ liest die gelegten Blöcke.
 
+Szene leeren: `clearscene` oder `szeneleeren`.
+
+Gestapeltes Netz:
+
+```
+nnnew netz 4 4 2
+nnlayer netz lstm 4 stack 2
+nnlayer netz attention 4 heads 2
+```
+
 Dichtes Netz, ein Schritt:
 
 ```

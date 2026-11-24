@@ -44,6 +44,13 @@ if (await page.evaluate(() => document.documentElement.dataset.blocks) !== 'flat
 await page.click('#menu-view');
 await page.click('[data-blocks="normal"]');
 
+const thumb = await page.$eval('.scroll-pad button', (el) => el.getBoundingClientRect().height);
+if (thumb < 16) errors.push(`scroll button ${thumb}`);
+const topBefore = await page.$eval('#workspace', (el) => el.scrollTop);
+await page.click('#scroll-down');
+const topAfter = await page.$eval('#workspace', (el) => el.scrollTop);
+if (topAfter <= topBefore) errors.push(`scroll ${topBefore}->${topAfter}`);
+await page.screenshot({ path: `${shots}/scroll-desktop.png` });
 await page.click('#code-in');
 const zoom = await page.$eval('#scripts', (el) => el.style.zoom);
 const label = await page.$eval('#zoom-label', (el) => el.textContent);
@@ -116,8 +123,11 @@ const phone = await browser.newPage({ viewport: { width: 390, height: 800 }, has
 await phone.goto(base, { waitUntil: 'networkidle' });
 if (await phone.$('#tour:not([hidden])')) await phone.click('#tour-skip');
 await phone.click('button[data-pane="code"]');
+const phoneThumb = await phone.$eval('.scroll-pad button', (el) => el.getBoundingClientRect().height);
+if (phoneThumb < 24) errors.push(`mobile scroll ${phoneThumb}`);
 await phone.click('button[data-pane="stage"]');
 await phone.click('button[data-pane="sprites"]');
+await phone.screenshot({ path: `${shots}/scroll-mobile.png` });
 await phone.screenshot({ path: `${shots}/ui-mobile.png` });
 const mobileTools = await phone.$eval('#tool-tabs', (el) => el.childElementCount);
 if (mobileTools !== 0) errors.push('mobile tool tabs');
