@@ -11,10 +11,22 @@ import { mount } from './ui.js';
 import { bluetoothAvailable, bluetoothPing } from './bluetooth.js';
 import { evaluateJob } from './jobs.js';
 import { buildAiMessages } from './prompt.js';
-import { chatComplete } from './client.js';
+import { chatComplete, chatViaProxy } from './client.js';
+import { finishLogin } from './oauth.js';
 
 const settings = loadSettings();
 document.documentElement.lang = settings.lang;
+document.documentElement.dataset.theme = settings.theme || 'light';
+try {
+  const configUrl = new URL('config.json', window.location.href);
+  const config = await fetch(configUrl).then((response) => (response.ok ? response.json() : {}));
+  if (config.proxyUrl && !settings.proxyUrl) settings.proxyUrl = config.proxyUrl;
+  if (config.xClientId && !settings.xClientId) settings.xClientId = config.xClientId;
+} catch { /* optional public config */ }
+try {
+  await finishLogin(settings);
+  saveSettings(settings);
+} catch { /* login callback can fail without blocking the editor */ }
 const session = createSession();
 const bridge = { ask: async () => '' };
 const input = { mouse: { x: 0, y: 0, down: false }, keys: new Set() };
@@ -32,6 +44,8 @@ const runtime = createRuntime(session.project, {
   audio,
   input,
   ask: (question) => bridge.ask(question),
+  sample: (x, y) => (bridge.sample ? bridge.sample(x, y) : null),
+  userName: () => settings.xUser || 'Gast',
   lang: () => settings.lang,
   extensions,
   bluetooth: { available: bluetoothAvailable, ping: bluetoothPing },
@@ -42,21 +56,34 @@ const runtime = createRuntime(session.project, {
     peerCount: () => gridApi.node.peerCount(),
   },
   ai: async (request) => {
-    if (!settings.apiKey) throw new Error(settings.lang === 'en' ? 'Missing API key' : 'API-Schlüssel fehlt');
     const messages = buildAiMessages(session.project, request);
-    const result = await chatComplete({
-      baseUrl: settings.baseUrl,
-      apiKey: settings.apiKey,
-      model: settings.model,
-      system: messages.system,
-      user: messages.user,
-    });
+    const result = await sendChat(messages.system, messages.user);
     return result.content;
   },
 });
 
+async function sendChat(system, user) {
+  if (settings.proxyUrl && settings.xToken) {
+    return chatViaProxy({
+      proxyUrl: settings.proxyUrl,
+      xToken: settings.xToken,
+      model: settings.model,
+      system,
+      user,
+    });
+  }
+  if (!settings.apiKey) throw new Error(settings.lang === 'en' ? 'Missing API key' : 'API-Schlüssel fehlt');
+  return chatComplete({
+    baseUrl: settings.baseUrl,
+    apiKey: settings.apiKey,
+    model: settings.model,
+    system,
+    user,
+  });
+}
+
 mount(document.querySelector('#app'), {
-  session, runtime, settings, saveSettings, gridApi, audio, extensions, bridge, input,
+  session, runtime, settings, saveSettings, gridApi, audio, extensions, bridge, input, sendChat,
 });
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

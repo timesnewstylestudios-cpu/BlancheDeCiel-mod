@@ -105,7 +105,7 @@ Listen folgen der Scratch-Reihenfolge: `push` Gegenstand dann Liste, `remove` In
 
 ## KI-Aufruf
 
-Die Anfrage an `https://api.x.ai/v1/chat/completions` enthält die Systemanweisung, diese Grammatik in Kurzform und `projectToBdl` des Projekts, nicht das SB3-JSON. Die Antwort soll nur einen ```bdl-Block enthalten. Der Schlüssel bleibt im Browser (`localStorage`) und wird nicht mitgeliefert, außer als `Authorization`-Kopf an die von dir eingestellte Basis-URL.
+Die Anfrage an `https://api.x.ai/v1/chat/completions` enthält die Systemanweisung, diese Grammatik in Kurzform und `projectToBdl` des Projekts, nicht das SB3-JSON. Die Antwort soll nur einen ```bdl-Block enthalten. Der eigene Schlüssel bleibt im Tab, außer du lässt ihn ausdrücklich merken. Ein X-Login schickt kein xAI-Geheimnis. Siehe `docs/x-login.md`.
 
 Blöcke `aiprompt` geben erst Geld aus, wenn in den Einstellungen „KI-Blöcke im Skript“ an ist.
 
@@ -115,7 +115,7 @@ Blöcke `aiprompt` geben erst Geld aus, wenn in den Einstellungen „KI-Blöcke 
 
 Erweiterungen, die du lädst, rufst du mit `ext <id> <opcode> <argumente…>` auf.
 
-`warp` `clone` `deleteclone` `waituntil` `stop` `bounce` `pointtowards` `glide` `switchcostume` `nextcostume` `ghost` `sphere3d` `costume` `touching` `distance` `current` `contains`
+`warp` `clone` `deleteclone` `waituntil` `stop` `bounce` `pointtowards` `glide` `switchcostume` `nextcostume` `ghost` `sphere3d` `costume` `touching` `distance` `current` `contains` `front` `back` `changelayer` `switchbackdrop` `nextbackdrop` `backdrop` `broadcastwait` `touchcolor` `colortouch` `days2000` `username` `cloneof` `changepen` `sethue` `changehue`
 
 ## English
 

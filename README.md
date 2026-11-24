@@ -9,7 +9,7 @@ Lizenz: GNU GPL 3.0 oder jede spätere Version. Siehe `LICENSE`.
 ## Was du damit machen kannst
 
 - Blöcke antippen oder aus der Palette ziehen, Skripte starten, Figuren auf der Bühne schieben.
-- **KI:** In der Leiste „KI“ einen Satz schreiben. Mit eigenem Schlüssel von [xAI](https://console.x.ai) geht die Anfrage an `https://api.x.ai/v1/chat/completions` (OpenAI-kompatibel, Modell standardmäßig `grok-4.7`). Der Schlüssel liegt nur in `localStorage` dieses Browsers. Die Anfrage schickt eine kurze BDL-Zusammenfassung und die Opcode-Liste, nicht das ganze Projekt-JSON. Die Antwort ist BDL und wird zu Blöcken. Ohne Schlüssel kannst du BDL von Hand einfügen und auf „BDL anwenden“ drücken. Blöcke, die im Skript die KI rufen, sind aus, bis du sie in den Einstellungen einschaltest.
+- **KI:** In der Leiste „KI“ einen Satz schreiben. Mit eigenem Schlüssel von [xAI](https://console.x.ai) geht die Anfrage direkt an `https://api.x.ai/v1/chat/completions`. Der Schlüssel gilt nur für den Tab, bis du „merken“ ankreuzt. Optional die Anmeldung mit X über einen eigenen Proxy, der den xAI-Schlüssel behält: [docs/x-login.md](docs/x-login.md). Die Anfrage schickt eine kurze BDL-Zusammenfassung, nicht das ganze Projekt-JSON. Ohne Schlüssel oder Anmeldung kannst du BDL von Hand einfügen.
 - **Blöcke:** Klone (`clone`, `when clone`, `deleteclone`), eigene Blöcke mit Parametern und `warp` (ohne Bildschirmaktualisierung), Kostüme aus einer kleinen Bibliothek oder der Zeichenfläche, Töne als WAV, Rucksack in `localStorage`.
 - **Import:** `.sb3`, `.pmp`, ZIP, eingebettetes Projekt in HTML, `.bdc.json` und JavaScript. Neben den Grundblöcken kommen Klone, Warten-bis, Stopp, Gleiten, Rand, Kostümwechsel, Ghost, eigene Blöcke mit Parametern und `warp` an. JavaScript versteht zusätzlich Parameter, `else if`, Arrays, einfache Objekte, `for…of` und Indexzugriff. Es wird nicht ausgeführt. Nur für eigenen Code oder Code, dessen Lizenz das erlaubt.
 - **Netz:** Tabellen und Aufträge zwischen Gegenstellen, Kademlia-artig über die bestehenden Verbindungen. Tabs desselben Browsers finden sich von selbst. Andere Geräte: Angebot und Antwort wie bisher, oder ein Raumname als QR-Code. Optional eine Signal-URL (WebTorrent-Tracker, zum Beispiel `wss://tracker.openwebtorrent.com`). Leer lassen heißt: kein Server.
@@ -21,7 +21,7 @@ Die Bühnenmitte ist der Ursprung, x zeigt nach rechts, y nach oben. Richtung 0 
 
 ## BDL
 
-Die Beschreibungssprache steht vollständig in [docs/bdl.md](docs/bdl.md). Kurz:
+Die Beschreibungssprache steht in [docs/bdl.md](docs/bdl.md). Alle Funktionen, einschließlich Zoom, Flächen und Darstellung, stehen in [docs/funktionen.md](docs/funktionen.md) und in der Hilfe der App. Kurz:
 
 ```bdl
 sprite Figur
@@ -101,7 +101,7 @@ npx cap open android
 
 ## Bekannte Grenzen
 
-Weiterhin nicht eingebaut: der volle Scratch-Befehlssatz (Berühren einer Farbe, Klon-Ursprung als eigene Variable, Nachrichten mit Wartezeit nur als Senden), ein Malprogramm mit Ebenen, und ein garantiert erreichbarer öffentlicher Tracker. Unbekannte Opcodes werden Kommentare. HTML-Import sucht ein ZIP (`UEsDB…`) oder `targets`. Verteilte Aufträge rechnen lokal sofort; Gegenstellen bekommen dieselben Zeilen. Der Tracker ist absichtlich aus, bis eine URL eingetragen ist. Aufnahme, Mikrofon und WebRTC hängen am Gerät.
+Farbberührung tastet Bühnenpixel um die Figur ab, nicht jede Kostümkante. Senden-und-warten wartet, bis die gestarteten Empfängerskripte stehen. Weiterhin Kommentar-Blöcke für unbekannte Opcodes. HTML-Import sucht ein ZIP (`UEsDB…`) oder `targets`. Der Tracker ist aus, bis eine URL eingetragen ist. Die X-Anmeldung tut nichts, bis Proxy und Client-ID stehen. Aufnahme, Mikrofon und WebRTC hängen am Gerät.
 
 ## English
 
@@ -111,6 +111,6 @@ The license is GPL-3.0-or-later.
 
 Run `npm ci`, `npm test`, `npm run dev`. `npm run build` writes `dist/`. GitHub Actions deploys `main` to GitHub Pages only after the repository Pages source is set to GitHub Actions; until then that deploy job fails. Android builds are documented in `docs/android-studio.md` and `docs/android-termux.md`.
 
-The AI panel calls `https://api.x.ai/v1/chat/completions` with your own key, stored only in `localStorage`. The model sees a compact BDL summary, documented in `docs/bdl.md`. Clones, procedures with parameters and warp, a small costume and sound library, a drawing costume editor, and a localStorage backpack are in the editor. Import covers more Scratch opcodes, including procedures and clones, and more JavaScript syntax. Peers can join a room by QR code when an optional WebTorrent tracker URL is set. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB, and can hand the page to Chrome.
+The AI panel calls `https://api.x.ai/v1/chat/completions` with your own key, kept for the tab unless you tick remember. Optional X login is documented in `docs/x-login.md`: an X token is not an xAI key, so a proxy you deploy holds the xAI key. The model sees a compact BDL summary, documented in `docs/bdl.md`. Feature notes for zoom, panels and themes are in `docs/funktionen.md` and in the in-app help. Peers can join a room by QR code when an optional tracker URL is set. Bluetooth tries a native bridge, Capacitor BLE, Web Bluetooth, Web Serial and Web USB.
 
-Still absent: the full Scratch opcode set, and a guaranteed public tracker.
+Still absent: a pixel-perfect costume collision, and a guaranteed public tracker. Unknown imported opcodes become comments.

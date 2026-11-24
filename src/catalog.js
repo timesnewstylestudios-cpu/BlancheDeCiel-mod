@@ -51,6 +51,12 @@ export const BLOCKS = [
   spec('nextcostume', 'looks', 'command', 'nächstes Kostüm', 'next costume'),
   spec('costume', 'looks', 'reporter', 'Kostümnummer', 'costume number'),
   spec('ghost', 'looks', 'command', 'setze Durchsichtigkeit auf %1', 'set ghost effect to %1', [n(0)]),
+  spec('front', 'looks', 'command', 'komme nach vorn', 'go to front'),
+  spec('back', 'looks', 'command', 'gehe nach hinten', 'go to back'),
+  spec('changelayer', 'looks', 'command', 'ändere Ebene um %1', 'change layer by %1', [n(1)]),
+  spec('switchbackdrop', 'looks', 'command', 'wechsle zu Bühnenbild %1', 'switch backdrop to %1', [s('Hintergrund')]),
+  spec('nextbackdrop', 'looks', 'command', 'nächstes Bühnenbild', 'next backdrop'),
+  spec('backdrop', 'looks', 'reporter', 'Bühnenbildname', 'backdrop name'),
 
   spec('whenflag', 'events', 'hat', 'Wenn die grüne Flagge angeklickt', 'when green flag clicked'),
   spec('whenkey', 'events', 'hat', 'Wenn Taste %1 gedrückt', 'when %1 key pressed', [menu('space', ['space', 'up', 'down', 'left', 'right', 'enter', 'a', 'w', 's', 'd'])]),
@@ -58,6 +64,7 @@ export const BLOCKS = [
   spec('whenreceive', 'events', 'hat', 'Wenn ich %1 empfange', 'when I receive %1', [s('Nachricht')]),
   spec('whenclone', 'control', 'hat', 'Wenn ich als Klon starte', 'when I start as a clone'),
   spec('broadcast', 'events', 'command', 'sende %1 an alle', 'broadcast %1', [s('Nachricht')]),
+  spec('broadcastwait', 'events', 'command', 'sende %1 an alle und warte', 'broadcast %1 and wait', [s('Nachricht')]),
 
   spec('wait', 'control', 'command', 'warte %1 Sekunden', 'wait %1 seconds', [n(1)]),
   spec('repeat', 'control', 'c', 'wiederhole %1 mal', 'repeat %1', [n(10)]),
@@ -81,6 +88,11 @@ export const BLOCKS = [
   spec('touching', 'sensing', 'boolean', 'wird %1 berührt?', 'touching %1?', [menu('edge', ['edge', 'mouse'])]),
   spec('distance', 'sensing', 'reporter', 'Entfernung von %1', 'distance to %1', [menu('mouse', ['mouse'])]),
   spec('current', 'sensing', 'reporter', 'aktuell %1', 'current %1', [menu('second', ['year', 'month', 'date', 'hour', 'minute', 'second'])]),
+  spec('touchcolor', 'sensing', 'boolean', 'wird Farbe %1 berührt?', 'touching color %1?', [col('#ff0000')]),
+  spec('colortouch', 'sensing', 'boolean', 'Farbe %1 berührt %2?', 'color %1 is touching %2?', [col('#4C97FF'), col('#ffffff')]),
+  spec('days2000', 'sensing', 'reporter', 'Tage seit 2000', 'days since 2000'),
+  spec('username', 'sensing', 'reporter', 'Benutzername', 'username'),
+  spec('cloneof', 'sensing', 'reporter', 'Klon von', 'clone of'),
 
   spec('add', 'operators', 'reporter', '%1 + %2', '%1 + %2', [n(0), n(0)]),
   spec('sub', 'operators', 'reporter', '%1 − %2', '%1 - %2', [n(0), n(0)]),
@@ -116,6 +128,9 @@ export const BLOCKS = [
   spec('penclear', 'pen', 'command', 'lösche alles vom Stift', 'erase all'),
   spec('pencolor', 'pen', 'command', 'setze Stiftfarbe auf %1', 'set pen color to %1', [col('#0FBD8C')]),
   spec('pensize', 'pen', 'command', 'setze Stiftdicke auf %1', 'set pen size to %1', [n(2)]),
+  spec('changepen', 'pen', 'command', 'ändere Stiftdicke um %1', 'change pen size by %1', [n(1)]),
+  spec('sethue', 'pen', 'command', 'setze Stiftfarbe auf Farbton %1', 'set pen color to hue %1', [n(50)]),
+  spec('changehue', 'pen', 'command', 'ändere Stiftfarbton um %1', 'change pen hue by %1', [n(10)]),
   spec('stamp', 'pen', 'command', 'hinterlasse Abdruck', 'stamp'),
 
   spec('tone', 'audio', 'command', 'spiele Ton %1 Hz für %2 Sekunden', 'play tone %1 Hz for %2 seconds', [n(440), n(0.4)]),

@@ -3,6 +3,8 @@
 :root {
   color-scheme: light;
   --ink: #16324f;
+  --header: #16324f;
+  --card: #ffffff;
   --sky: #e7f3fb;
   --paper: #f4f8fb;
   --line: #d5e2ec;
@@ -13,7 +15,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--sky); color: var(--ink); }
 button, input, select, textarea { font: inherit; color: inherit; }
-button { min-height: 44px; border: 0; border-radius: 10px; background: #fff; padding: 0 12px; cursor: pointer; }
+button { min-height: 44px; border: 0; border-radius: 10px; background: var(--card); padding: 0 12px; cursor: pointer; }
 button:hover { background: #e8f2fa; }
 button.primary { background: #2f9e44; color: white; }
 button.stop { background: #e23d3d; color: white; }
@@ -22,7 +24,7 @@ button.active { outline: 3px solid var(--ink); }
 .app { min-height: 100dvh; display: flex; flex-direction: column; }
 header {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  padding: 8px 12px; background: var(--ink); color: white;
+  padding: 8px 12px; background: var(--header); color: white;
 }
 header button { background: #24527a; color: white; }
 header button.primary { background: #2f9e44; }
@@ -117,4 +119,25 @@ footer { padding: 6px 12px; background: white; border-top: 1px solid var(--line)
   .app[data-pane="stage"] .tool, .app[data-pane="stage"] .tool-tabs { display: none; }
   .app:not([data-pane="stage"]) .stage-mount, .app:not([data-pane="stage"]) .sprites { display: none; }
   header .file-menu { width: 100%; }
+  .split { display: none; }
+}
+
+.split { cursor: col-resize; touch-action: none; background: var(--line); min-width: 10px; align-self: stretch; }
+.split-y { cursor: row-resize; height: 14px; width: 100%; min-width: 0; }
+.stage-tools { padding: 4px 8px; }
+.stage-mount:fullscreen { height: 100vh; background: #000; }
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e7f3fb; --header: #0b1520; --sky: #0e1a24; --paper: #152433; --line: #2c465c; --card: #1b3144;
+}
+html[data-theme="contrast"] {
+  --ink: #000; --header: #000; --sky: #fff; --paper: #fff; --line: #000; --card: #fff;
+}
+html[data-theme="contrast"] .block { outline: 2px solid #000; }
+html[data-theme="sea"] {
+  --ink: #083344; --header: #0f4c5c; --sky: #e0f7fa; --paper: #f3fcfd; --line: #b6e3ea; --card: #fff;
+}
+html[data-theme="dusk"] {
+  color-scheme: dark;
+  --ink: #fff4e8; --header: #2a160f; --sky: #1a120e; --paper: #2a1c16; --line: #5a3a2a; --card: #3a261c;
 }

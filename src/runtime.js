@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { cloneData, stageOf, uid } from './model.js';
+import { hueToHex, nearColor, parseHex } from './color.js';
 import { applyBdl, extractBdl } from './bdl.js';
 import { evaluateJob, jobKey } from './jobs.js';
 import { toPseudo } from './decompile.js';
@@ -80,6 +81,8 @@ export function createRuntime(project, services = {}) {
   const ai = services.ai || (async () => { throw new Error('no-ai'); });
   const extensions = services.extensions || { get() { return null; } };
   const bluetooth = services.bluetooth || { available() { return false; }, ping() { return Promise.resolve({ ok: false, reason: 'unavailable' }); } };
+  const sample = services.sample || (() => null);
+  const userName = () => (services.userName ? services.userName() : 'Gast');
   const lang = () => {
     if (typeof services.lang === 'function') return services.lang() || 'de';
     return services.lang || 'de';
@@ -206,6 +209,15 @@ export function createRuntime(project, services = {}) {
       case 'distance': return Math.hypot(sprite.x - input.mouse.x, sprite.y - input.mouse.y);
       case 'costume': return (sprite.costumeIndex || 0) + 1;
       case 'current': return currentValue(String(v[0] ?? 'second'));
+      case 'touchcolor': return nearColor(sample(sprite.x, sprite.y), parseHex(v[0]));
+      case 'colortouch': return colorTouching(sprite, v[0], v[1]);
+      case 'days2000': return (now() - Date.UTC(2000, 0, 1)) / 86400000;
+      case 'username': return userName();
+      case 'cloneof': {
+        const parent = project.sprites.find((item) => item.id === sprite.cloneParent);
+        return parent ? parent.name : '';
+      }
+      case 'backdrop': return stage()?.costumeName || '';
       case 'peers': return grid.peerCount();
       case 'bt': return bluetooth.available() ? 1 : 0;
       case 'ext': return callExtension(sprite, String(v[0] ?? ''), String(v[1] ?? ''), v.slice(2));
@@ -283,6 +295,12 @@ sprite.x = snap(x);
     const limitX = 240 - 12 * ((sprite.size || 100) / 100);
     const limitY = 180 - 12 * ((sprite.size || 100) / 100);
     return Math.abs(sprite.x) > limitX || Math.abs(sprite.y) > limitY;
+  }
+
+  function colorTouching(sprite, mine, other) {
+    if (!nearColor(parseHex(sprite.penColor), parseHex(mine))) return false;
+    const offsets = [[12, 0], [-12, 0], [0, 12], [0, -12]];
+    return offsets.some(([dx, dy]) => nearColor(sample(sprite.x + dx, sprite.y + dy), parseHex(other)));
   }
 
   function currentValue(key) {
@@ -462,9 +480,65 @@ sprite.x = snap(x);
       sprite.effects = sprite.effects || { ghost: 0 };
       sprite.effects.ghost = Math.max(0, Math.min(100, toNumber(evalExpr(block.args[0], sprite))));
     },
+    front(thread, block, sprite) {
+      const top = Math.max(0, ...project.sprites.map((item) => item.layerOrder || 0));
+      sprite.layerOrder = top + 1;
+    },
+    back(thread, block, sprite) {
+      sprite.layerOrder = 0;
+    },
+    changelayer(thread, block, sprite) {
+      sprite.layerOrder = (sprite.layerOrder || 1) + toNumber(evalExpr(block.args[0], sprite));
+    },
+    switchbackdrop(thread, block, sprite) {
+      const stageSprite = stage();
+      if (!stageSprite) return;
+      const name = String(evalExpr(block.args[0], sprite));
+      const list = stageSprite.costumes || [];
+      const index = list.findIndex((item) => item.name === name);
+      stageSprite.costumeIndex = index >= 0 ? index : 0;
+      const chosen = list[stageSprite.costumeIndex];
+      if (chosen) {
+        stageSprite.costume = chosen.dataUrl;
+        stageSprite.costumeName = chosen.name;
+      } else stageSprite.costumeName = name;
+    },
+    nextbackdrop() {
+      const stageSprite = stage();
+      if (!stageSprite || !(stageSprite.costumes || []).length) return;
+      stageSprite.costumeIndex = ((stageSprite.costumeIndex || 0) + 1) % stageSprite.costumes.length;
+      const chosen = stageSprite.costumes[stageSprite.costumeIndex];
+      stageSprite.costume = chosen.dataUrl;
+      stageSprite.costumeName = chosen.name || '';
+    },
+    changepen(thread, block, sprite) {
+      sprite.penSize = Math.max(1, sprite.penSize + toNumber(evalExpr(block.args[0], sprite)));
+    },
+    sethue(thread, block, sprite) {
+      sprite.penHue = toNumber(evalExpr(block.args[0], sprite));
+      sprite.penColor = hueToHex(sprite.penHue);
+    },
+    changehue(thread, block, sprite) {
+      sprite.penHue = (sprite.penHue || 0) + toNumber(evalExpr(block.args[0], sprite));
+      sprite.penColor = hueToHex(sprite.penHue);
+    },
     broadcast(thread, block, sprite) {
       const message = String(evalExpr(block.args[0], sprite));
       startHats('whenreceive', (owner, hat) => hatText(owner, hat) === message);
+    },
+    broadcastwait(thread, block, sprite) {
+      const message = String(evalExpr(block.args[0], sprite));
+      if (!thread.waitingBroadcast) {
+        const tag = uid();
+        const before = threads.length;
+        startHats('whenreceive', (owner, hat) => hatText(owner, hat) === message);
+        for (let index = before; index < threads.length; index += 1) threads[index].broadcastTag = tag;
+        thread.waitingBroadcast = tag;
+      }
+      const pending = threads.some((item) => item.broadcastTag === thread.waitingBroadcast && !item.done);
+      if (pending) return { retry: 40 };
+      thread.waitingBroadcast = null;
+      return undefined;
     },
     ask(thread, block, sprite) {
       const question = String(evalExpr(block.args[0], sprite));
