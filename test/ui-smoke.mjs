@@ -50,7 +50,6 @@ const topBefore = await page.$eval('#workspace', (el) => el.scrollTop);
 await page.click('#scroll-down');
 const topAfter = await page.$eval('#workspace', (el) => el.scrollTop);
 if (topAfter <= topBefore) errors.push(`scroll ${topBefore}->${topAfter}`);
-await page.screenshot({ path: `${shots}/scroll-desktop.png` });
 await page.click('#code-in');
 const zoom = await page.$eval('#scripts', (el) => el.style.zoom);
 const label = await page.$eval('#zoom-label', (el) => el.textContent);
@@ -127,7 +126,6 @@ const phoneThumb = await phone.$eval('.scroll-pad button', (el) => el.getBoundin
 if (phoneThumb < 24) errors.push(`mobile scroll ${phoneThumb}`);
 await phone.click('button[data-pane="stage"]');
 await phone.click('button[data-pane="sprites"]');
-await phone.screenshot({ path: `${shots}/scroll-mobile.png` });
 await phone.screenshot({ path: `${shots}/ui-mobile.png` });
 const mobileTools = await phone.$eval('#tool-tabs', (el) => el.childElementCount);
 if (mobileTools !== 0) errors.push('mobile tool tabs');
