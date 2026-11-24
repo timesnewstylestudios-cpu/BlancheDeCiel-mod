@@ -650,6 +650,35 @@ sprite.x = snap(x);
       net.optimizer = String(evalExpr(block.args[1], sprite) || 'sgd');
       net.lr = toNumber(evalExpr(block.args[2], sprite)) || net.lr;
     },
+    nnrun(thread, block, sprite) {
+      const name = String(evalExpr(block.args[0], sprite) || '');
+      const net = (project.nets || {})[name];
+      if (!net) return;
+      const input = parseNumbers(evalExpr(block.args[1], sprite));
+      const into = String(evalExpr(block.args[2], sprite) || 'Vorhersage');
+      const dense = net.layers.length && net.layers.every((layer) => layer.type === 'dense');
+      if (!dense || !services.accel) {
+        writeVar(sprite, into, predict(net, input).join(','));
+        return;
+      }
+      const settled = settle(thread, `nnrun:${name}`, async () => {
+        let current = input;
+        for (const layer of net.layers) {
+          const raw = await services.accel(layer.w, current);
+          current = raw.map((value, index) => {
+            const z = value + (layer.b[index] || 0);
+            if (layer.activation === 'relu') return Math.max(0, z);
+            if (layer.activation === 'sigmoid') return 1 / (1 + Math.exp(-Math.max(-20, Math.min(20, z))));
+            if (layer.activation === 'tanh') return Math.tanh(z);
+            return z;
+          });
+        }
+        return current;
+      });
+      if (settled.retry) return settled;
+      if (settled.ok) writeVar(sprite, into, (settled.value || []).join(','));
+      return undefined;
+    },
     nntrain(thread, block, sprite) {
       const net = (project.nets || {})[String(evalExpr(block.args[0], sprite) || '')];
       if (!net) return;

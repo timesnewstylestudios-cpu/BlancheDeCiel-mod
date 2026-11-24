@@ -6,6 +6,7 @@ import { createRuntime } from './runtime.js';
 import { createAudio } from './audio.js';
 import { createExtensionHost } from './extensions.js';
 import { startBrowserGrid } from './browsergrid.js';
+import { gemm, iceServers } from './accel.js';
 import { randomId } from './kad.js';
 import { mount } from './ui.js';
 import { bluetoothAvailable, bluetoothPing } from './bluetooth.js';
@@ -27,7 +28,7 @@ const bridge = { ask: async () => '' };
 const input = { mouse: { x: 0, y: 0, down: false }, keys: new Set() };
 const audio = createAudio();
 const extensions = createExtensionHost();
-const gridApi = startBrowserGrid(loadNodeId(randomId));
+const gridApi = startBrowserGrid(loadNodeId(randomId), () => iceServers(settings));
 
 gridApi.node.onJob((info, from) => {
   const result = evaluateJob(info.rows || [], info.op, info.column);
@@ -50,6 +51,7 @@ const runtime = createRuntime(session.project, {
   local,
   persistLocal,
   shell: (line) => unix.exec(line),
+  accel: gemm,
   lang: () => settings.lang,
   extensions,
   bluetooth: { available: bluetoothAvailable, ping: bluetoothPing },
